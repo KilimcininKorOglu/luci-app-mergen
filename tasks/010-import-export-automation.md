@@ -82,7 +82,7 @@ Periodic prefix update and manual update command.
 
 ### T032 - Hotplug Integration
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 1.5 days
 

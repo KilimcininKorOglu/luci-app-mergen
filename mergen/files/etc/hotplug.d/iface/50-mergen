@@ -1,21 +1,126 @@
 #!/bin/sh
-
 # Mergen hotplug handler for interface up/down events
 # Called by netifd when interface state changes
-# Full implementation in T032 — Hotplug Integration
+#
+# Environment variables (set by netifd):
+#   ACTION    — "ifup" or "ifdown"
+#   INTERFACE — logical interface name (e.g., wan, wg0, vpn)
+#   DEVICE    — physical device name (e.g., eth0, wg0)
 
-[ -f /usr/lib/mergen/core.sh ] || exit 0
+MERGEN_LIB_DIR="${MERGEN_LIB_DIR:-/usr/lib/mergen}"
 
-. /usr/lib/mergen/core.sh
+[ -f "${MERGEN_LIB_DIR}/core.sh" ] || exit 0
 
+# Source libraries
+. "${MERGEN_LIB_DIR}/core.sh"
+type mergen_rule_get >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/engine.sh"
+type mergen_route_apply >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/route.sh"
+type mergen_resolve_asn >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/resolver.sh"
+
+# Check if Mergen is enabled globally
 mergen_uci_get "global" "enabled" "0"
 [ "$MERGEN_UCI_RESULT" = "1" ] || exit 0
 
+# Ignore non-relevant actions
+case "$ACTION" in
+	ifup|ifdown) ;;
+	*) exit 0 ;;
+esac
+
+# Ignore empty interface names
+[ -n "$INTERFACE" ] || exit 0
+
+mergen_log "info" "Hotplug" "$ACTION: $INTERFACE (device: ${DEVICE:-unknown})"
+
+# Find rules that use this interface
+_hotplug_has_rules=0
+
+_hotplug_check_cb() {
+	local section="$1"
+	local name via enabled
+
+	config_get name "$section" "name" ""
+	config_get via "$section" "via" ""
+	config_get enabled "$section" "enabled" "1"
+
+	# Match interface name against rule's via field
+	if [ "$via" = "$INTERFACE" ] || [ "$via" = "$DEVICE" ]; then
+		if [ "$enabled" = "1" ]; then
+			_hotplug_has_rules=1
+		fi
+	fi
+}
+
+config_load "$MERGEN_CONF"
+config_foreach _hotplug_check_cb "rule"
+
+# No rules use this interface — nothing to do
+if [ "$_hotplug_has_rules" -eq 0 ]; then
+	mergen_log "debug" "Hotplug" "$INTERFACE: ilgili kural yok, atlanıyor"
+	exit 0
+fi
+
+# Acquire lock with short timeout (don't block other hotplug events)
+if ! mergen_lock_acquire 10; then
+	mergen_log "warning" "Hotplug" "Kilit alınamadı, işlem erteleniyor"
+	exit 0
+fi
+
 case "$ACTION" in
 	ifup)
-		mergen_log "info" "Hotplug" "Interface $INTERFACE came up"
+		mergen_log "info" "Hotplug" "$INTERFACE kalktı, ilgili kurallar uygulanıyor..."
+
+		_hotplug_apply_count=0
+
+		_hotplug_apply_cb() {
+			local section="$1"
+			local name via enabled
+
+			config_get name "$section" "name" ""
+			config_get via "$section" "via" ""
+			config_get enabled "$section" "enabled" "1"
+
+			if [ "$enabled" = "1" ] && { [ "$via" = "$INTERFACE" ] || [ "$via" = "$DEVICE" ]; }; then
+				mergen_log "info" "Hotplug" "Kural uygulanıyor: $name (via $via)"
+				if mergen_route_apply "$name"; then
+					_hotplug_apply_count=$((_hotplug_apply_count + 1))
+				else
+					mergen_log "error" "Hotplug" "Kural uygulanamadı: $name"
+				fi
+			fi
+		}
+
+		config_load "$MERGEN_CONF"
+		config_foreach _hotplug_apply_cb "rule"
+
+		mergen_log "info" "Hotplug" "$INTERFACE: $_hotplug_apply_count kural uygulandı"
 		;;
+
 	ifdown)
-		mergen_log "info" "Hotplug" "Interface $INTERFACE went down"
+		mergen_log "info" "Hotplug" "$INTERFACE düştü, ilgili rotalar temizleniyor..."
+
+		_hotplug_remove_count=0
+
+		_hotplug_remove_cb() {
+			local section="$1"
+			local name via enabled
+
+			config_get name "$section" "name" ""
+			config_get via "$section" "via" ""
+			config_get enabled "$section" "enabled" "1"
+
+			if [ "$enabled" = "1" ] && { [ "$via" = "$INTERFACE" ] || [ "$via" = "$DEVICE" ]; }; then
+				mergen_log "info" "Hotplug" "Rota temizleniyor: $name (via $via)"
+				mergen_route_remove "$name" 2>/dev/null
+				_hotplug_remove_count=$((_hotplug_remove_count + 1))
+			fi
+		}
+
+		config_load "$MERGEN_CONF"
+		config_foreach _hotplug_remove_cb "rule"
+
+		mergen_log "info" "Hotplug" "$INTERFACE: $_hotplug_remove_count kural temizlendi"
 		;;
 esac
+
+mergen_lock_release

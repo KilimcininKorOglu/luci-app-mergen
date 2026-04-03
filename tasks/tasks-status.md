@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 17    | 35%        |
+| NOT_STARTED | 16    | 33%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 32    | 65%        |
+| COMPLETED   | 33    | 67%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -82,7 +82,7 @@
 | T029 | F009    | Rule Grouping (Label/Tag)         | P4       | 1d     | COMPLETED   | T007         |
 | T030 | F010    | JSON Import/Export                | P2       | 2d     | COMPLETED   | T007, T010   |
 | T031 | F010    | Cron Auto-Update                  | P2       | 1.5d   | COMPLETED   | T006, T010   |
-| T032 | F010    | Hotplug Integration               | P2       | 1.5d   | NOT_STARTED | T010, T012   |
+| T032 | F010    | Hotplug Integration               | P2       | 1.5d   | COMPLETED   | T010, T012   |
 | T033 | F010    | Resolve Command & Phase 3 Tests   | P3       | 1d     | NOT_STARTED | T005, T023   |
 
 ### Phase 4: LuCI Core Pages (4 tasks)
