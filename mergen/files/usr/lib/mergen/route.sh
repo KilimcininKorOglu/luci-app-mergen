@@ -60,6 +60,39 @@ mergen_detect_gateway() {
 	return 1
 }
 
+# ── IPv6 Gateway Detection ─────────────────────────────
+
+# Detect the IPv6 gateway address for a given interface
+# Usage: mergen_detect_gateway_v6 <interface>
+# Sets MERGEN_GATEWAY_V6_ADDR on success, returns 1 if not found
+MERGEN_GATEWAY_V6_ADDR=""
+
+mergen_detect_gateway_v6() {
+	local interface="$1"
+	MERGEN_GATEWAY_V6_ADDR=""
+
+	local gw
+	gw="$(ip -6 route show dev "$interface" 2>/dev/null | \
+		sed -n 's/^default via \([^ ]*\).*/\1/p' | head -1)"
+
+	if [ -n "$gw" ]; then
+		MERGEN_GATEWAY_V6_ADDR="$gw"
+		return 0
+	fi
+
+	gw="$(ip -6 route show default 2>/dev/null | \
+		grep "dev $interface" | \
+		sed -n 's/^default via \([^ ]*\).*/\1/p' | head -1)"
+
+	if [ -n "$gw" ]; then
+		MERGEN_GATEWAY_V6_ADDR="$gw"
+		return 0
+	fi
+
+	mergen_log "warning" "Route" "IPv6 gateway bulunamadi: ${interface}"
+	return 1
+}
+
 # ── Table Number Management ─────────────────────────────
 
 # Get the routing table number for a rule
@@ -137,10 +170,30 @@ mergen_route_apply() {
 
 	mergen_log "info" "Route" "Kural '${rule_name}' uygulanıyor (tablo: ${table_num}, arayüz: ${via})"
 
-	# Build prefix list based on rule type
+	# Check if IPv6 is enabled
+	mergen_uci_get "global" "ipv6_enabled" "1"
+	local ipv6_enabled="$MERGEN_UCI_RESULT"
+
+	# Build prefix lists (v4 and v6)
+	local prefix_list_v6=""
+
 	if [ "$type" = "ip" ]; then
-		# IP-based rule: targets are CIDR prefixes directly
-		prefix_list="$(echo "$targets" | tr ' ' '\n')"
+		# IP-based rule: separate v4/v6 CIDR prefixes
+		local _item
+		for _item in $targets; do
+			case "$_item" in
+				*:*)
+					if [ "$ipv6_enabled" = "1" ]; then
+						prefix_list_v6="${prefix_list_v6}
+${_item}"
+					fi
+					;;
+				*)
+					prefix_list="${prefix_list}
+${_item}"
+					;;
+			esac
+		done
 	elif [ "$type" = "asn" ]; then
 		# ASN-based rule: resolve each ASN to get prefixes
 		local asn_item
@@ -149,6 +202,10 @@ mergen_route_apply() {
 				if [ -n "$MERGEN_RESOLVE_RESULT_V4" ]; then
 					prefix_list="${prefix_list}
 ${MERGEN_RESOLVE_RESULT_V4}"
+				fi
+				if [ "$ipv6_enabled" = "1" ] && [ -n "$MERGEN_RESOLVE_RESULT_V6" ]; then
+					prefix_list_v6="${prefix_list_v6}
+${MERGEN_RESOLVE_RESULT_V6}"
 				fi
 			else
 				mergen_log "warning" "Route" "ASN ${asn_item} çözümlenemedi, atlanıyor."
@@ -161,71 +218,118 @@ ${MERGEN_RESOLVE_RESULT_V4}"
 
 	# Clean empty lines
 	prefix_list="$(echo "$prefix_list" | sed '/^$/d')"
+	prefix_list_v6="$(echo "$prefix_list_v6" | sed '/^$/d')"
 
-	if [ -z "$prefix_list" ]; then
+	if [ -z "$prefix_list" ] && [ -z "$prefix_list_v6" ]; then
 		mergen_log "warning" "Route" "Kural '${rule_name}' için prefix bulunamadı."
 		return 0
 	fi
 
-	# Count prefixes
-	local prefix_count
-	prefix_count="$(echo "$prefix_list" | wc -l | tr -d ' ')"
+	# Count prefixes (v4 + v6 combined for limit checks)
+	local prefix_count prefix_count_v6=0
+	prefix_count="$(echo "$prefix_list" | grep -c '.' 2>/dev/null || echo 0)"
+	[ -z "$prefix_list" ] && prefix_count=0
+	if [ -n "$prefix_list_v6" ]; then
+		prefix_count_v6="$(echo "$prefix_list_v6" | wc -l | tr -d ' ')"
+	fi
+	local total_prefix_count=$((prefix_count + prefix_count_v6))
 
 	# Check prefix limits (unless --force is active)
 	if [ "${MERGEN_FORCE_APPLY:-0}" != "1" ]; then
-		if ! mergen_check_prefix_limit "$rule_name" "$prefix_count"; then
+		if ! mergen_check_prefix_limit "$rule_name" "$total_prefix_count"; then
 			mergen_log "error" "Route" "$MERGEN_PREFIX_LIMIT_ERR"
 			return 1
 		fi
-		if ! mergen_check_prefix_total "$prefix_count"; then
+		if ! mergen_check_prefix_total "$total_prefix_count"; then
 			mergen_log "error" "Route" "$MERGEN_PREFIX_LIMIT_ERR"
 			return 1
 		fi
 	fi
 
-	mergen_log "info" "Route" "${prefix_count} prefix uygulanıyor..."
+	mergen_log "info" "Route" "${prefix_count} IPv4 + ${prefix_count_v6} IPv6 prefix uygulanıyor..."
 
-	# Apply routes for each prefix
-	# NOTE: Here-document used instead of pipe to avoid subshell variable loss
+	# ── Apply IPv4 Routes ──────────────────────────────────
 	local line errors=0
-	while IFS= read -r line; do
-		[ -z "$line" ] && continue
-
-		# Add ip route: route the prefix via the specified gateway and interface
-		if ! ip route add "$line" via "$gateway" dev "$via" table "$table_num" 2>/dev/null; then
-			# Route might already exist, try replace
-			if ! ip route replace "$line" via "$gateway" dev "$via" table "$table_num" 2>/dev/null; then
-				mergen_log "warning" "Route" "Rota eklenemedi: ${line} -> ${via}"
-				errors=$((errors + 1))
+	if [ -n "$prefix_list" ]; then
+		while IFS= read -r line; do
+			[ -z "$line" ] && continue
+			if ! ip route add "$line" via "$gateway" dev "$via" table "$table_num" 2>/dev/null; then
+				if ! ip route replace "$line" via "$gateway" dev "$via" table "$table_num" 2>/dev/null; then
+					mergen_log "warning" "Route" "Rota eklenemedi: ${line} -> ${via}"
+					errors=$((errors + 1))
+				fi
 			fi
-		fi
-	done <<EOF
+		done <<EOF
 $prefix_list
 EOF
+	fi
 
-	# Set-based routing via common interface (nftables or ipset)
+	# ── Apply IPv6 Routes ──────────────────────────────────
+	if [ -n "$prefix_list_v6" ]; then
+		local gateway_v6=""
+		if mergen_detect_gateway_v6 "$via"; then
+			gateway_v6="$MERGEN_GATEWAY_V6_ADDR"
+		fi
+
+		while IFS= read -r line; do
+			[ -z "$line" ] && continue
+			if [ -n "$gateway_v6" ]; then
+				if ! ip -6 route add "$line" via "$gateway_v6" dev "$via" table "$table_num" 2>/dev/null; then
+					ip -6 route replace "$line" via "$gateway_v6" dev "$via" table "$table_num" 2>/dev/null
+				fi
+			else
+				# Link-local: route without explicit gateway
+				if ! ip -6 route add "$line" dev "$via" table "$table_num" 2>/dev/null; then
+					ip -6 route replace "$line" dev "$via" table "$table_num" 2>/dev/null
+				fi
+			fi
+		done <<V6ROUTEEOF
+$prefix_list_v6
+V6ROUTEEOF
+	fi
+
+	# ── Set-Based Routing ──────────────────────────────────
 	mergen_engine_detect
 	if [ "$MERGEN_ENGINE_ACTIVE" != "none" ]; then
-		# Create set, add prefixes, add fwmark/MARK rule
-		if mergen_set_create "$rule_name"; then
-			if mergen_set_add "$rule_name" "$prefix_list"; then
-				# Use table_num as fwmark (unique per rule)
-				mergen_set_mark_rule "$rule_name" "$table_num"
-				# Single ip rule for fwmark-based routing
-				ip rule add fwmark "$table_num" lookup "$table_num" priority "$priority" 2>/dev/null
+		# IPv4 set
+		if [ -n "$prefix_list" ]; then
+			if mergen_set_create "$rule_name"; then
+				if mergen_set_add "$rule_name" "$prefix_list"; then
+					mergen_set_mark_rule "$rule_name" "$table_num"
+					ip rule add fwmark "$table_num" lookup "$table_num" priority "$priority" 2>/dev/null
+				fi
+			fi
+		fi
+		# IPv6 set
+		if [ -n "$prefix_list_v6" ]; then
+			if mergen_set_create_v6 "$rule_name"; then
+				if mergen_set_add_v6 "$rule_name" "$prefix_list_v6"; then
+					mergen_set_mark_rule_v6 "$rule_name" "$table_num"
+					ip -6 rule add fwmark "$table_num" lookup "$table_num" priority "$priority" 2>/dev/null
+				fi
 			fi
 		fi
 	else
 		# Fallback: individual ip rules per prefix (no set engine available)
-		while IFS= read -r line; do
-			[ -z "$line" ] && continue
-			ip rule add to "$line" lookup "$table_num" priority "$priority" 2>/dev/null
-		done <<IPRULEEOF
+		if [ -n "$prefix_list" ]; then
+			while IFS= read -r line; do
+				[ -z "$line" ] && continue
+				ip rule add to "$line" lookup "$table_num" priority "$priority" 2>/dev/null
+			done <<IPRULEEOF
 $prefix_list
 IPRULEEOF
+		fi
+		if [ -n "$prefix_list_v6" ]; then
+			while IFS= read -r line; do
+				[ -z "$line" ] && continue
+				ip -6 rule add to "$line" lookup "$table_num" priority "$priority" 2>/dev/null
+			done <<IP6RULEEOF
+$prefix_list_v6
+IP6RULEEOF
+		fi
 	fi
 
-	mergen_log "info" "Route" "Kural '${rule_name}' uygulandı (tablo: ${table_num}, prefix: ${prefix_count})"
+	mergen_log "info" "Route" "Kural '${rule_name}' uygulandı (tablo: ${table_num}, v4: ${prefix_count}, v6: ${prefix_count_v6})"
 	return 0
 }
 
@@ -250,8 +354,9 @@ mergen_route_remove() {
 
 	mergen_log "info" "Route" "Kural '${rule_name}' kaldırılıyor (tablo: ${table_num})"
 
-	# Remove set and fwmark/MARK rule via common interface
+	# Remove set and fwmark/MARK rule via common interface (v4 + v6)
 	mergen_set_destroy "$rule_name"
+	mergen_set_destroy_v6 "$rule_name"
 
 	# Remove all ip rules pointing to this table (including fwmark rules)
 	# Loop until no more rules exist for this table
@@ -262,8 +367,16 @@ mergen_route_remove() {
 		[ "$attempts" -ge "$max_attempts" ] && break
 	done
 
-	# Flush the routing table
+	# Remove all ip -6 rules pointing to this table
+	attempts=0
+	while ip -6 rule del lookup "$table_num" 2>/dev/null; do
+		attempts=$((attempts + 1))
+		[ "$attempts" -ge "$max_attempts" ] && break
+	done
+
+	# Flush the routing table (v4 + v6)
 	ip route flush table "$table_num" 2>/dev/null
+	ip -6 route flush table "$table_num" 2>/dev/null
 
 	mergen_log "info" "Route" "Kural '${rule_name}' kaldırıldı (tablo: ${table_num})"
 	return 0
@@ -957,6 +1070,158 @@ mergen_nft_snapshot_restore() {
 	return 0
 }
 
+# ── nftables IPv6 Set Management ─────────────────────────────
+
+# Create an nftables set for IPv6 addresses
+# Usage: mergen_nft_set_create_v6 <rule_name>
+mergen_nft_set_create_v6() {
+	local rule_name="$1"
+	local set_name="mergen_${rule_name}_v6"
+
+	if [ -z "$rule_name" ]; then
+		mergen_log "error" "NFT" "[!] Hata: Kural adı belirtilmeli."
+		return 1
+	fi
+
+	if ! mergen_nft_available; then
+		mergen_log "error" "NFT" "[!] Hata: nftables (nft) komutu bulunamadı."
+		return 1
+	fi
+
+	mergen_nft_init || return 1
+
+	if ! nft add set inet "$MERGEN_NFT_TABLE" "$set_name" \
+		'{ type ipv6_addr ; flags interval ; }' 2>/dev/null; then
+		if nft list set inet "$MERGEN_NFT_TABLE" "$set_name" >/dev/null 2>&1; then
+			mergen_log "debug" "NFT" "IPv6 set zaten mevcut: ${set_name}"
+			return 0
+		fi
+		mergen_log "error" "NFT" "[!] Hata: IPv6 nftables set oluşturulamadı: ${set_name}"
+		return 1
+	fi
+
+	mergen_log "debug" "NFT" "IPv6 set oluşturuldu: ${set_name}"
+	return 0
+}
+
+# Add IPv6 prefixes to an nftables set (bulk via batch file)
+# Usage: mergen_nft_set_add_v6 <rule_name> <prefix_list>
+mergen_nft_set_add_v6() {
+	local rule_name="$1"
+	local prefix_list="$2"
+	local set_name="mergen_${rule_name}_v6"
+
+	if [ -z "$rule_name" ] || [ -z "$prefix_list" ]; then
+		mergen_log "error" "NFT" "[!] Hata: Kural adı ve prefix listesi gerekli."
+		return 1
+	fi
+
+	local batch_file="${MERGEN_TMP:-/tmp/mergen}/nft_batch_${rule_name}_v6.nft"
+	local elements_file="${MERGEN_TMP:-/tmp/mergen}/nft_elements_${rule_name}_v6.tmp"
+	[ -d "${MERGEN_TMP:-/tmp/mergen}" ] || mkdir -p "${MERGEN_TMP:-/tmp/mergen}"
+
+	printf 'flush set inet %s %s\n' "$MERGEN_NFT_TABLE" "$set_name" > "$batch_file"
+	echo "$prefix_list" | sed '/^$/d' > "$elements_file"
+
+	local chunk="" chunk_count=0
+	while IFS= read -r prefix; do
+		if [ -z "$chunk" ]; then
+			chunk="$prefix"
+		else
+			chunk="${chunk}, ${prefix}"
+		fi
+		chunk_count=$((chunk_count + 1))
+
+		if [ "$chunk_count" -ge 200 ]; then
+			printf 'add element inet %s %s { %s }\n' \
+				"$MERGEN_NFT_TABLE" "$set_name" "$chunk" >> "$batch_file"
+			chunk=""
+			chunk_count=0
+		fi
+	done < "$elements_file"
+
+	if [ -n "$chunk" ]; then
+		printf 'add element inet %s %s { %s }\n' \
+			"$MERGEN_NFT_TABLE" "$set_name" "$chunk" >> "$batch_file"
+	fi
+
+	rm -f "$elements_file"
+
+	if ! nft -f "$batch_file" 2>/dev/null; then
+		mergen_log "error" "NFT" "[!] Hata: IPv6 prefix'ler set'e eklenemedi: ${set_name}"
+		rm -f "$batch_file"
+		return 1
+	fi
+
+	rm -f "$batch_file"
+
+	local count
+	count="$(echo "$prefix_list" | sed '/^$/d' | wc -l | tr -d ' ')"
+	mergen_log "info" "NFT" "IPv6 set '${set_name}' güncellendi: ${count} prefix"
+	return 0
+}
+
+# Destroy an IPv6 nftables set and its associated fwmark rule
+# Usage: mergen_nft_set_destroy_v6 <rule_name>
+mergen_nft_set_destroy_v6() {
+	local rule_name="$1"
+	local set_name="mergen_${rule_name}_v6"
+
+	if ! mergen_nft_available; then
+		return 0
+	fi
+
+	local handle
+	handle="$(nft -a list chain inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" 2>/dev/null | \
+		grep "@${set_name}" | sed -n 's/.*# handle \([0-9]*\)/\1/p')"
+
+	if [ -n "$handle" ]; then
+		local h
+		for h in $handle; do
+			nft delete rule inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" handle "$h" 2>/dev/null
+		done
+	fi
+
+	nft delete set inet "$MERGEN_NFT_TABLE" "$set_name" 2>/dev/null
+
+	mergen_log "debug" "NFT" "IPv6 set kaldırıldı: ${set_name}"
+	return 0
+}
+
+# Add an IPv6 fwmark rule for a set
+# Usage: mergen_nft_rule_add_v6 <rule_name> <fwmark>
+# Creates: ip6 daddr @mergen_{rule_name}_v6 meta mark set {fwmark}
+mergen_nft_rule_add_v6() {
+	local rule_name="$1"
+	local fwmark="$2"
+	local set_name="mergen_${rule_name}_v6"
+
+	if [ -z "$rule_name" ] || [ -z "$fwmark" ]; then
+		mergen_log "error" "NFT" "[!] Hata: Kural adı ve fwmark değeri gerekli."
+		return 1
+	fi
+
+	if ! mergen_nft_available; then
+		mergen_log "error" "NFT" "[!] Hata: nftables (nft) komutu bulunamadı."
+		return 1
+	fi
+
+	if nft -a list chain inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" 2>/dev/null | \
+		grep -q "@${set_name}"; then
+		mergen_log "debug" "NFT" "IPv6 fwmark kuralı zaten mevcut: ${set_name}"
+		return 0
+	fi
+
+	if ! nft add rule inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" \
+		ip6 daddr "@${set_name}" meta mark set "$fwmark" 2>/dev/null; then
+		mergen_log "error" "NFT" "[!] Hata: IPv6 fwmark kuralı eklenemedi: ${set_name} -> ${fwmark}"
+		return 1
+	fi
+
+	mergen_log "debug" "NFT" "IPv6 fwmark kuralı eklendi: @${set_name} -> mark ${fwmark}"
+	return 0
+}
+
 # ── ipset Fallback ───────────────────────────────────────────
 
 MERGEN_IPSET_AVAILABLE=""
@@ -1168,6 +1433,127 @@ mergen_ipset_snapshot_restore() {
 	return 0
 }
 
+# ── ipset IPv6 Fallback ──────────────────────────────────────
+
+# Create an ipset for IPv6 addresses
+# Usage: mergen_ipset_create_v6 <rule_name>
+mergen_ipset_create_v6() {
+	local rule_name="$1"
+	local set_name="mergen_${rule_name}_v6"
+
+	if [ -z "$rule_name" ]; then
+		mergen_log "error" "IPSET" "[!] Hata: Kural adı belirtilmeli."
+		return 1
+	fi
+
+	if ! mergen_ipset_available; then
+		mergen_log "error" "IPSET" "[!] Hata: ipset komutu bulunamadı."
+		return 1
+	fi
+
+	if ! ipset create "$set_name" hash:net family inet6 -exist 2>/dev/null; then
+		mergen_log "error" "IPSET" "[!] Hata: IPv6 ipset oluşturulamadı: ${set_name}"
+		return 1
+	fi
+
+	mergen_log "debug" "IPSET" "IPv6 set oluşturuldu: ${set_name}"
+	return 0
+}
+
+# Add IPv6 prefixes to an ipset (bulk via ipset restore)
+# Usage: mergen_ipset_add_v6 <rule_name> <prefix_list>
+mergen_ipset_add_v6() {
+	local rule_name="$1"
+	local prefix_list="$2"
+	local set_name="mergen_${rule_name}_v6"
+
+	if [ -z "$rule_name" ] || [ -z "$prefix_list" ]; then
+		mergen_log "error" "IPSET" "[!] Hata: Kural adı ve prefix listesi gerekli."
+		return 1
+	fi
+
+	local restore_file="${MERGEN_TMP:-/tmp/mergen}/ipset_restore_${rule_name}_v6.txt"
+	[ -d "${MERGEN_TMP:-/tmp/mergen}" ] || mkdir -p "${MERGEN_TMP:-/tmp/mergen}"
+
+	{
+		printf 'flush %s\n' "$set_name"
+		echo "$prefix_list" | sed '/^$/d' | while IFS= read -r prefix; do
+			printf 'add %s %s\n' "$set_name" "$prefix"
+		done
+	} > "$restore_file"
+
+	if ! ipset restore -exist < "$restore_file" 2>/dev/null; then
+		mergen_log "error" "IPSET" "[!] Hata: IPv6 prefix'ler set'e eklenemedi: ${set_name}"
+		rm -f "$restore_file"
+		return 1
+	fi
+
+	rm -f "$restore_file"
+
+	local count
+	count="$(echo "$prefix_list" | sed '/^$/d' | wc -l | tr -d ' ')"
+	mergen_log "info" "IPSET" "IPv6 set '${set_name}' güncellendi: ${count} prefix"
+	return 0
+}
+
+# Destroy an IPv6 ipset and its associated ip6tables MARK rule
+# Usage: mergen_ipset_destroy_v6 <rule_name>
+mergen_ipset_destroy_v6() {
+	local rule_name="$1"
+	local set_name="mergen_${rule_name}_v6"
+
+	if ! mergen_ipset_available; then
+		return 0
+	fi
+
+	local max=100 i=0
+	while ip6tables -t mangle -D PREROUTING \
+		-m set --match-set "$set_name" dst -j MARK --set-mark 0/0 2>/dev/null || \
+		ip6tables -t mangle -D PREROUTING \
+		-m set --match-set "$set_name" dst -j MARK 2>/dev/null; do
+		i=$((i + 1))
+		[ "$i" -ge "$max" ] && break
+	done
+
+	ipset destroy "$set_name" 2>/dev/null
+
+	mergen_log "debug" "IPSET" "IPv6 set kaldırıldı: ${set_name}"
+	return 0
+}
+
+# Add an ip6tables MARK rule for an IPv6 ipset
+# Usage: mergen_ipset_mark_add_v6 <rule_name> <fwmark>
+mergen_ipset_mark_add_v6() {
+	local rule_name="$1"
+	local fwmark="$2"
+	local set_name="mergen_${rule_name}_v6"
+
+	if [ -z "$rule_name" ] || [ -z "$fwmark" ]; then
+		mergen_log "error" "IPSET" "[!] Hata: Kural adı ve fwmark değeri gerekli."
+		return 1
+	fi
+
+	if ! mergen_ipset_available; then
+		mergen_log "error" "IPSET" "[!] Hata: ipset komutu bulunamadı."
+		return 1
+	fi
+
+	if ip6tables -t mangle -C PREROUTING \
+		-m set --match-set "$set_name" dst -j MARK --set-mark "$fwmark" 2>/dev/null; then
+		mergen_log "debug" "IPSET" "IPv6 MARK kuralı zaten mevcut: ${set_name}"
+		return 0
+	fi
+
+	if ! ip6tables -t mangle -A PREROUTING \
+		-m set --match-set "$set_name" dst -j MARK --set-mark "$fwmark" 2>/dev/null; then
+		mergen_log "error" "IPSET" "[!] Hata: IPv6 MARK kuralı eklenemedi: ${set_name} -> ${fwmark}"
+		return 1
+	fi
+
+	mergen_log "debug" "IPSET" "IPv6 MARK kuralı eklendi: ${set_name} -> mark ${fwmark}"
+	return 0
+}
+
 # ── Packet Engine Abstraction ────────────────────────────────
 
 # Engine detection: auto → nftables → ipset → none
@@ -1295,4 +1681,42 @@ mergen_set_snapshot_restore() {
 		ipset)    mergen_ipset_snapshot_restore ;;
 	esac
 	return 0
+}
+
+# ── Common Interface IPv6 (dispatches to nftables or ipset) ────
+
+mergen_set_create_v6() {
+	mergen_engine_detect
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables) mergen_nft_set_create_v6 "$@" ;;
+		ipset)    mergen_ipset_create_v6 "$@" ;;
+		*)        return 1 ;;
+	esac
+}
+
+mergen_set_add_v6() {
+	mergen_engine_detect
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables) mergen_nft_set_add_v6 "$@" ;;
+		ipset)    mergen_ipset_add_v6 "$@" ;;
+		*)        return 1 ;;
+	esac
+}
+
+mergen_set_destroy_v6() {
+	mergen_engine_detect
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables) mergen_nft_set_destroy_v6 "$@" ;;
+		ipset)    mergen_ipset_destroy_v6 "$@" ;;
+		*)        return 0 ;;
+	esac
+}
+
+mergen_set_mark_rule_v6() {
+	mergen_engine_detect
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables) mergen_nft_rule_add_v6 "$@" ;;
+		ipset)    mergen_ipset_mark_add_v6 "$@" ;;
+		*)        return 1 ;;
+	esac
 }
