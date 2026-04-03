@@ -1,6 +1,6 @@
 # Mergen - OpenWrt ASN/IP Bazlı Policy Routing
 
-version: 1.0
+version: 1.1
 
 > *Mergen: Türk-Altay mitolojisinde bilgelik ve okçuluk tanrısı. Oku daima hedefe ulaştırır.*
 
@@ -339,19 +339,269 @@ Next sync: 2026-04-04 14:30:00 UTC
 
 ## 8. LuCI Arayüzü
 
-### 8.1 Sayfalar
+### 8.1 Genel Bakış Sayfası
 
-| Sayfa             | İçerik                                                 |
-|-------------------|--------------------------------------------------------|
-| Genel Bakış       | Aktif kurallar, trafik özeti, daemon durumu            |
-| Kurallar          | Kural listesi, ekle/düzenle/sil, sürükle-bırak öncelik |
-| ASN Tarayıcı      | ASN ara, prefix listesini önizle, tek tıkla kural ekle |
-| Arayüzler         | Mevcut WAN/VPN arayüzleri, durumlar                    |
-| Provider Ayarları | ASN veri kaynakları yapılandırma                       |
-| Loglar            | Canlı log akışı                                        |
-| Gelişmiş          | Routing tablo ayarları, nftables/ipset tercihi, IPv6   |
+Ana sayfa. Kullanıcı Mergen sekmesini açtığında ilk karşılaştığı ekran. Tüm sistemin anlık durumunu özetler.
 
-### 8.2 UI Tasarımı (Wireframe)
+**Üst Bant (Durum Kartları)**:
+
+| Kart              | Gösterge                                                        |
+|-------------------|-----------------------------------------------------------------|
+| Daemon Durumu     | Çalışıyor / Durdu / Hata — yeşil/kırmızı/sarı renk göstergesi |
+| Toplam Kural      | Aktif / Pasif / Hatalı kural sayıları                           |
+| Toplam Prefix     | IPv4 ve IPv6 prefix sayıları ayrı ayrı                         |
+| Son Senkronizasyon| Tarih/saat + "X dakika önce" formatında                         |
+| Sonraki Sync      | Bir sonraki otomatik güncelleme zamanı                          |
+
+**Aktif Kurallar Tablosu**:
+- Tüm kuralların özet listesi (ad, tür, hedef, arayüz, prefix sayısı, durum)
+- Durum sütununda renkli badge: aktif (yeşil), pasif (gri), hata (kırmızı), beklemede (sarı)
+- Satır tıklanınca ilgili kuralın detay sayfasına yönlendirme
+
+**Hızlı Eylemler**:
+- [Tümünü Uygula] — beklemedeki tüm kuralları uygula
+- [Prefix Güncelle] — tüm ASN prefix listelerini şimdi güncelle
+- [Daemon Yeniden Başlat] — mergen servisini restart et
+
+**Son İşlemler Akışı**:
+- Son 10 işlem logu (kural ekleme, silme, uygulama, güncelleme)
+- Her satırda: zaman damgası, işlem türü, sonuç (başarılı/başarısız)
+- "Tüm logları gör" bağlantısı ile Loglar sayfasına yönlendirme
+
+### 8.2 Kurallar Sayfası
+
+Kural yönetiminin merkezi. Tüm CRUD işlemleri bu sayfadan yapılır.
+
+**Kural Listesi Tablosu**:
+
+| Sütun       | Açıklama                                                       |
+|-------------|----------------------------------------------------------------|
+| Sıra        | Sürükle-bırak ile öncelik değiştirme tutamacı                 |
+| Durum       | Açma/kapama toggle switch                                      |
+| Ad          | Kuralın label'ı (tıklanabilir, düzenleme formunu açar)         |
+| Tür         | ASN / IP / Karma — ikon ile gösterim                           |
+| Hedef       | ASN numaraları veya IP/CIDR blokları (kısaltılmış, hover'da tam liste) |
+| Arayüz      | Hedef arayüz adı (wg0, wan2, vb.) — dropdown ile değiştirilebilir |
+| Prefix      | Çözümlenmiş prefix sayısı (IPv4 + IPv6 ayrı)                  |
+| Öncelik     | Sayısal değer (düzenlenebilir)                                 |
+| İşlemler    | [Düzenle] [Kopyala] [Sil] butonları                           |
+
+**Yeni Kural Ekleme Formu** (sayfa içi açılır panel):
+
+- **Kural Adı**: Serbest metin, benzersiz olmalı (validasyon)
+- **Kural Türü**: Radio buton — ASN / IP / Karma
+- **ASN Girişi** (tür=ASN seçildiğinde):
+  - Tek ASN numarası girişi veya virgülle ayrılmış çoklu ASN
+  - "ASN Ara" butonu ile ASN Tarayıcı sayfasına geçiş
+  - Girilen ASN'in geçerliliği anlık kontrol (API sorgusu)
+- **IP Girişi** (tür=IP seçildiğinde):
+  - IP/CIDR formatında giriş (satır başına bir adet)
+  - CIDR validasyonu (geçersiz formatta uyarı)
+- **Hedef Arayüz**: Dropdown — sistemdeki mevcut arayüzler (wg0, wan, wan2, vb.)
+- **Öncelik**: Sayısal giriş (varsayılan: 100, aralık: 1-32000)
+- **Açıklama**: Opsiyonel serbest metin alanı
+- [Kaydet] ve [İptal] butonları
+
+**Toplu İşlemler**:
+- Çoklu seçim checkbox'ları ile toplu aktif/pasif yapma
+- Toplu silme (onay dialogu ile)
+- Toplu arayüz değiştirme
+- YAML/JSON olarak dışa aktarma (seçili kurallar)
+
+**Sürükle-Bırak Önceliklendirme**:
+- Kural satırlarını sürükleyerek sıralama değiştirme
+- Sıralama değişince öncelik değerleri otomatik yeniden hesaplanır
+- Değişiklikler "Uygula" butonuna basılana kadar kaydedilmez
+
+### 8.3 ASN Tarayıcı Sayfası
+
+ASN keşif ve önizleme aracı. Kullanıcı kural eklemeden önce ASN'leri araştırabilir.
+
+**Arama Bölümü**:
+- **ASN Numarası ile Arama**: "AS13335" veya "13335" formatında giriş
+- **Organizasyon Adı ile Arama**: "Cloudflare", "Google" gibi metin arama
+- **IP Adresi ile Ters Arama**: Bir IP adresinin hangi ASN'e ait olduğunu bulma
+- Arama sonuçları anlık olarak (debounced) listelenir
+
+**ASN Detay Paneli** (bir ASN seçildiğinde):
+
+| Bilgi              | Açıklama                                           |
+|--------------------|-----------------------------------------------------|
+| ASN Numarası       | AS13335                                             |
+| Organizasyon       | Cloudflare, Inc.                                    |
+| Ülke               | US (bayrak ikonu ile)                                |
+| RIR                | ARIN / RIPE / APNIC vb.                            |
+| IPv4 Prefix Sayısı | Toplam sayı ve liste                                |
+| IPv6 Prefix Sayısı | Toplam sayı ve liste                                |
+| Toplam IP Sayısı   | IPv4 adres havuzu büyüklüğü                        |
+| Kaynak Provider    | Bilginin hangi provider'dan geldiği                  |
+
+**Prefix Listesi Önizleme**:
+- ASN'e ait tüm prefix'lerin sayfalanmış tablosu
+- Sütunlar: Prefix, Versiyon (v4/v6), Adres Sayısı
+- Filtreleme: Sadece IPv4 / Sadece IPv6 / Tümü
+- Sıralama: Prefix büyüklüğüne veya adres sırasına göre
+
+**Hızlı Kural Oluşturma**:
+- [Bu ASN için Kural Ekle] butonu
+- Tıklandığında hedef arayüz seçme dropdown'u açılır
+- Arayüz seçilince doğrudan Kurallar sayfasına yönlendirir (kural eklenmiş olarak)
+
+**Karşılaştırma Modu**:
+- Birden fazla ASN seçip yan yana karşılaştırma
+- Ortak prefix'leri vurgulama (örtüşen CIDR blokları)
+
+### 8.4 Arayüzler Sayfası
+
+Sistemdeki ağ arayüzlerinin durumu ve Mergen ile ilişkisi.
+
+**Arayüz Listesi**:
+
+| Sütun             | Açıklama                                                 |
+|-------------------|----------------------------------------------------------|
+| Arayüz Adı       | wan, wan2, wg0, tun0 vb.                                |
+| Tür               | WAN / VPN (WireGuard) / VPN (OpenVPN) / LAN             |
+| Durum             | Aktif (yeşil) / Pasif (kırmızı) / Bağlanıyor (sarı)     |
+| IP Adresi         | Arayüze atanmış IP                                       |
+| Gateway           | Varsayılan ağ geçidi                                     |
+| Mergen Kuralları  | Bu arayüze yönlendirilmiş kural sayısı                   |
+| Toplam Prefix     | Bu arayüze yönlendirilmiş toplam prefix sayısı           |
+| Trafik            | Anlık giriş/çıkış bant genişliği (varsa)                 |
+
+**Arayüz Detay Paneli** (bir arayüz seçildiğinde):
+- Arayüze atanmış tüm Mergen kurallarının listesi
+- Routing tablosu detayı (`ip route show table X` çıktısı)
+- nftables set içeriği (bu arayüze ait set'teki prefix sayısı)
+- Bağlantı testi: [Ping Gateway] [Traceroute] butonları
+- Son 24 saatlik arayüz up/down geçmişi
+
+**Sağlık Kontrolü**:
+- Her arayüz için periyodik ping testi sonuçları
+- Gecikme (latency) ve paket kaybı metrikleri
+- Arayüz düştüğünde hangi kuralların etkileneceğinin gösterimi
+
+### 8.5 Provider Ayarları Sayfası
+
+ASN veri kaynağı provider'larının yapılandırması.
+
+**Provider Listesi**:
+
+| Sütun         | Açıklama                                                  |
+|---------------|-----------------------------------------------------------|
+| Öncelik       | Sürükle-bırak ile sıralama (düşük numara = yüksek öncelik)|
+| Provider Adı  | RIPE RIS, bgp.tools, bgpview.io, MaxMind, RouteViews, IRR|
+| Durum         | Aktif / Pasif toggle switch                               |
+| Son Sorgu     | Son başarılı sorgu zamanı                                 |
+| Başarı Oranı  | Son 24 saatteki başarılı/başarısız sorgu oranı            |
+| Ort. Yanıt    | Ortalama yanıt süresi (ms)                                |
+
+**Provider Detay/Düzenleme Formu** (her provider için):
+
+- **RIPE RIS**:
+  - API URL (varsayılan dolu, değiştirilebilir)
+  - Zaman aşımı süresi (saniye)
+  - Rate limit ayarı (saniyede maks sorgu)
+
+- **bgp.tools**:
+  - API URL
+  - API anahtarı (opsiyonel, premium erişim için)
+  - Zaman aşımı süresi
+
+- **bgpview.io**:
+  - API URL
+  - Zaman aşımı süresi
+  - Rate limit ayarı
+
+- **MaxMind GeoLite2**:
+  - Veritabanı dosya yolu (`/usr/share/mergen/GeoLite2-ASN.mmdb`)
+  - Lisans anahtarı (otomatik güncelleme için)
+  - Otomatik güncelleme açık/kapalı
+  - Son veritabanı güncelleme tarihi
+
+- **RouteViews**:
+  - MRT dump URL
+  - İndirme zamanlaması (büyük dosya, gece saatleri önerisi)
+
+- **IRR / RADB**:
+  - Whois sunucu adresi
+  - Zaman aşımı süresi
+
+**Genel Provider Ayarları**:
+- Önbellek süresi (varsayılan: 24 saat)
+- Fallback stratejisi: Sıralı deneme / Paralel sorgu / Sadece önbellek
+- Önbellek temizleme butonu: [Tüm Önbelleği Temizle]
+- Provider test butonu: [Tümünü Test Et] — her provider'a test sorgusu gönderir
+
+### 8.6 Loglar Sayfası
+
+Mergen daemon'unun log kayıtlarını gerçek zamanlı görüntüleme ve filtreleme.
+
+**Canlı Log Akışı**:
+- Otomatik kaydırma ile gerçek zamanlı log görüntüleme (websocket veya polling)
+- Duraklatma/devam ettirme butonu
+- Her log satırında: zaman damgası, seviye, bileşen, mesaj
+
+**Filtreleme Araçları**:
+
+| Filtre          | Seçenekler                                            |
+|-----------------|-------------------------------------------------------|
+| Log Seviyesi    | DEBUG / INFO / WARNING / ERROR (çoklu seçim)          |
+| Bileşen         | Resolver / Engine / Route / Provider / Daemon / LuCI  |
+| Kural Adı       | Belirli bir kurala ait logları filtrele                |
+| Zaman Aralığı   | Son 1 saat / 6 saat / 24 saat / 7 gün / Özel aralık |
+| Metin Arama     | Serbest metin arama (regex destekli)                  |
+
+**Log Detay Görünümü**:
+- Bir log satırına tıklandığında genişleyen detay paneli
+- İlişkili bağlam bilgisi (hangi kural, hangi provider, hangi prefix)
+- Hata loglarında stack trace veya komut çıktısı
+
+**Dışa Aktarma**:
+- Filtrelenmiş logları düz metin (.log) olarak indirme
+- Hata raporlama için "Tanı Paketi Oluştur" butonu (son loglar + yapılandırma + sistem bilgisi)
+
+### 8.7 Gelişmiş Ayarlar Sayfası
+
+İleri düzey kullanıcılar için sistem yapılandırması.
+
+**Routing Tablosu Ayarları**:
+- Varsayılan routing tablo numarası (varsayılan: 100)
+- Tablo numarası aralığı (min-max)
+- `ip rule` öncelik başlangıç değeri
+
+**Paket Eşleştirme Motoru**:
+- nftables set (önerilen, OpenWrt 23.05+)
+- ipset (eski sürümler için fallback)
+- Seçim yapıldığında uyumluluk kontrolü ve uyarı mesajı
+
+**IPv6 Yapılandırması**:
+- IPv6 desteği açık/kapalı toggle
+- IPv6 prefix'leri ayrı tablo mu, aynı tablo mu?
+- IPv6-only kurallar için özel ayarlar
+
+**Performans Ayarları**:
+
+| Ayar                     | Açıklama                              | Varsayılan |
+|--------------------------|---------------------------------------|------------|
+| Maks Prefix Limiti       | Tek kural başına maks prefix sayısı   | 10000      |
+| Toplam Prefix Limiti     | Tüm kurallar için toplam maks prefix  | 50000      |
+| Güncelleme Aralığı       | Otomatik prefix güncelleme periyodu   | 24 saat    |
+| API Zaman Aşımı          | Provider API sorgu timeout'u          | 30 sn      |
+| Paralel Sorgu Sayısı     | Eşzamanlı provider sorgu limiti       | 2          |
+
+**Güvenlik Ayarları**:
+- Rollback watchdog süresi (varsayılan: 60 saniye)
+- Safe mode: Uygulama sonrası bağlantı testi, başarısızsa otomatik geri al
+- Ping hedefi (safe mode kontrolü için, varsayılan: 8.8.8.8)
+
+**Bakım İşlemleri**:
+- [Tüm Route'ları Temizle (Flush)] — Mergen tarafından oluşturulan tüm kuralları sil
+- [Fabrika Ayarlarına Dön] — UCI config'i varsayılana sıfırla
+- [Yapılandırmayı Yedekle] — Mevcut UCI config'i dosya olarak indir
+- [Yapılandırmayı Geri Yükle] — Yedek dosyasından geri yükle
+- Mergen sürüm bilgisi ve güncelleme kontrolü
+
+### 8.8 UI Tasarımı (Wireframe)
 
 ```
 +-----------------------------------------------------------+
