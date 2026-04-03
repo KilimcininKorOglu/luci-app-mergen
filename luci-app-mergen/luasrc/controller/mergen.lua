@@ -26,6 +26,12 @@ function index()
 	entry({"admin", "services", "mergen", "asn-browser"},
 		template("mergen/asn-browser"), _("ASN Browser"), 25)
 
+	entry({"admin", "services", "mergen", "interfaces"},
+		template("mergen/interfaces"), _("Interfaces"), 35)
+
+	entry({"admin", "services", "mergen", "logs"},
+		template("mergen/logs"), _("Logs"), 45)
+
 	-- RPC endpoints (JSON API)
 	entry({"admin", "services", "mergen", "rpc", "status"},
 		call("rpc_status")).leaf = true
@@ -68,6 +74,18 @@ function index()
 
 	entry({"admin", "services", "mergen", "rpc", "add_rule"},
 		post("rpc_add_rule")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "interfaces"},
+		call("rpc_interfaces")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "ping"},
+		post("rpc_ping")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "logs"},
+		call("rpc_logs")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "diag_bundle"},
+		call("rpc_diag_bundle")).leaf = true
 end
 
 -- Helper: execute mergen CLI command and return output
@@ -459,5 +477,220 @@ function rpc_add_rule()
 	json_response({
 		success = true,
 		output = "Rule created: " .. name .. " (AS" .. asn .. " via " .. via .. ")"
+	})
+end
+
+-- RPC: Get interface details with Mergen context
+function rpc_interfaces()
+	local sys = require "luci.sys"
+	local uci = require "luci.model.uci".cursor()
+	local json = require "luci.jsonc"
+	local util = require "luci.util"
+
+	local result = {}
+	local devs = sys.net.devices() or {}
+
+	for _, dev in ipairs(devs) do
+		if dev ~= "lo" then
+			local info = {
+				name = dev,
+				status = "down",
+				ip = "",
+				gateway = "",
+				rules = 0,
+				prefixes = 0
+			}
+
+			-- Get IP address
+			local addrs = sys.net.ipaddrs(dev)
+			if addrs and #addrs > 0 then
+				info.ip = addrs[1]
+				info.status = "up"
+			end
+
+			-- Count Mergen rules targeting this interface
+			uci:foreach("mergen", "rule", function(s)
+				if s.via == dev and s.enabled == "1" then
+					info.rules = info.rules + 1
+				end
+			end)
+
+			result[#result + 1] = info
+		end
+	end
+
+	-- Also add UCI logical interfaces
+	uci:foreach("network", "interface", function(s)
+		local ifname = s[".name"]
+		if ifname and ifname ~= "loopback" then
+			local found = false
+			for _, r in ipairs(result) do
+				if r.name == ifname then found = true; break end
+			end
+
+			if not found then
+				local info = {
+					name = ifname .. " (logical)",
+					status = "unknown",
+					ip = "",
+					gateway = "",
+					rules = 0,
+					prefixes = 0
+				}
+
+				uci:foreach("mergen", "rule", function(rs)
+					if rs.via == ifname and rs.enabled == "1" then
+						info.rules = info.rules + 1
+					end
+				end)
+
+				result[#result + 1] = info
+			end
+		end
+	end)
+
+	json_response({
+		success = true,
+		interfaces = result
+	})
+end
+
+-- RPC: Ping a target (gateway connectivity test)
+function rpc_ping()
+	local http = require "luci.http"
+	local util = require "luci.util"
+	local target = http.formvalue("target") or ""
+	local count = http.formvalue("count") or "4"
+	local iface = http.formvalue("iface") or ""
+
+	if target == "" then
+		json_response({ success = false, error = "Target required" })
+		return
+	end
+
+	-- Sanitize target (only allow IP addresses and hostnames)
+	if not target:match("^[a-zA-Z0-9%.%-:]+$") then
+		json_response({ success = false, error = "Invalid target format" })
+		return
+	end
+
+	-- Sanitize count
+	local cnt = tonumber(count)
+	if not cnt or cnt < 1 or cnt > 10 then cnt = 4 end
+
+	local cmd = "ping -c " .. cnt .. " -W 3"
+	if iface ~= "" and iface:match("^[a-zA-Z0-9%-_]+$") then
+		cmd = cmd .. " -I " .. iface
+	end
+	cmd = cmd .. " " .. target .. " 2>&1"
+
+	local output = util.exec(cmd) or ""
+
+	-- Parse ping results
+	local transmitted = output:match("(%d+) packets transmitted")
+	local received = output:match("(%d+) received") or output:match("(%d+) packets received")
+	local loss = output:match("(%d+)%% packet loss")
+	local rtt = output:match("rtt min/avg/max/mdev = ([%d%.]+)/([%d%.]+)/([%d%.]+)/([%d%.]+)")
+	local rtt_min, rtt_avg, rtt_max = nil, nil, nil
+	if rtt then
+		rtt_min, rtt_avg, rtt_max = output:match("rtt min/avg/max/mdev = ([%d%.]+)/([%d%.]+)/([%d%.]+)")
+	end
+
+	json_response({
+		success = true,
+		target = target,
+		transmitted = tonumber(transmitted) or 0,
+		received = tonumber(received) or 0,
+		loss = tonumber(loss) or 100,
+		rtt_min = rtt_min,
+		rtt_avg = rtt_avg,
+		rtt_max = rtt_max,
+		raw = output
+	})
+end
+
+-- RPC: Get filtered Mergen logs
+function rpc_logs()
+	local http = require "luci.http"
+	local util = require "luci.util"
+	local lines = tonumber(http.formvalue("lines")) or 50
+	local level = http.formvalue("level") or ""
+	local filter = http.formvalue("filter") or ""
+
+	if lines < 1 then lines = 50 end
+	if lines > 500 then lines = 500 end
+
+	-- Read from syslog (logread), filter for mergen entries
+	local cmd = "logread -e mergen 2>/dev/null | tail -n " .. lines
+	local output = util.exec(cmd) or ""
+
+	-- Parse log lines into structured entries
+	local entries = {}
+	for line in output:gmatch("[^\n]+") do
+		local timestamp = line:match("^(%S+ %S+ %S+ %S+)")
+		local msg_level = line:match("mergen%[%d+%]: %[(%w+)%]") or "info"
+		local message = line:match("mergen%[%d+%]: (.+)$") or line
+
+		-- Apply level filter
+		local include = true
+		if level ~= "" then
+			local levels = { debug = 1, info = 2, warning = 3, error = 4 }
+			local req = levels[level] or 1
+			local cur = levels[msg_level] or 2
+			if cur < req then include = false end
+		end
+
+		-- Apply text filter
+		if include and filter ~= "" then
+			if not message:lower():find(filter:lower(), 1, true) then
+				include = false
+			end
+		end
+
+		if include then
+			entries[#entries + 1] = {
+				time = timestamp or "",
+				level = msg_level,
+				message = message
+			}
+		end
+	end
+
+	json_response({
+		success = true,
+		entries = entries,
+		total = #entries
+	})
+end
+
+-- RPC: Generate diagnostics bundle
+function rpc_diag_bundle()
+	local util = require "luci.util"
+	local parts = {}
+
+	parts[#parts + 1] = "=== Mergen Status ==="
+	parts[#parts + 1] = mergen_exec("status")
+
+	parts[#parts + 1] = "\n=== Mergen Rules ==="
+	parts[#parts + 1] = mergen_exec("list")
+
+	parts[#parts + 1] = "\n=== Mergen Validate ==="
+	parts[#parts + 1] = mergen_exec("validate --check-providers")
+
+	parts[#parts + 1] = "\n=== IP Rules ==="
+	parts[#parts + 1] = util.exec("ip rule show 2>/dev/null") or ""
+
+	parts[#parts + 1] = "\n=== IP Routes (table 100) ==="
+	parts[#parts + 1] = util.exec("ip route show table 100 2>/dev/null") or ""
+
+	parts[#parts + 1] = "\n=== nft Sets ==="
+	parts[#parts + 1] = util.exec("nft list sets 2>/dev/null") or ""
+
+	parts[#parts + 1] = "\n=== Recent Mergen Logs ==="
+	parts[#parts + 1] = util.exec("logread -e mergen 2>/dev/null | tail -n 50") or ""
+
+	json_response({
+		success = true,
+		bundle = table.concat(parts, "\n")
 	})
 end

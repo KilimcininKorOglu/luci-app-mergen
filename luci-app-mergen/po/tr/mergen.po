@@ -336,3 +336,90 @@ msgstr "zaten karsilastirmada"
 
 msgid "Maximum 4 ASNs can be compared"
 msgstr "En fazla 4 ASN karsilastirilabilir"
+
+msgid "Interfaces"
+msgstr "Arayuzler"
+
+msgid "Network interfaces used by Mergen routing rules with status and health checks."
+msgstr "Mergen yonlendirme kurallarinin kullandigi ag arayuzleri, durum ve saglik kontrolleri."
+
+msgid "Name"
+msgstr "Ad"
+
+msgid "IP Address"
+msgstr "IP Adresi"
+
+msgid "Mergen Rules"
+msgstr "Mergen Kurallari"
+
+msgid "Actions"
+msgstr "Islemler"
+
+msgid "Loading..."
+msgstr "Yukleniyor..."
+
+msgid "No interfaces found"
+msgstr "Arayuz bulunamadi"
+
+msgid "Connectivity Test"
+msgstr "Baglanti Testi"
+
+msgid "Ping"
+msgstr "Ping"
+
+msgid "Transmitted"
+msgstr "Gonderilen"
+
+msgid "Received"
+msgstr "Alinan"
+
+msgid "Loss"
+msgstr "Kayip"
+
+msgid "Avg Latency"
+msgstr "Ort. Gecikme"
+
+msgid "Ping failed"
+msgstr "Ping basarisiz"
+
+msgid "Logs"
+msgstr "Loglar"
+
+msgid "View and filter Mergen system logs with live updates."
+msgstr "Mergen sistem loglarini canli guncellemelerle goruntuleyip filtreleyin."
+
+msgid "All Levels"
+msgstr "Tum Seviyeler"
+
+msgid "Filter text..."
+msgstr "Filtre metni..."
+
+msgid "lines"
+msgstr "satir"
+
+msgid "Auto-refresh"
+msgstr "Otomatik yenile"
+
+msgid "Refresh"
+msgstr "Yenile"
+
+msgid "Download Log"
+msgstr "Logu Indir"
+
+msgid "Diagnostics Bundle"
+msgstr "Tani Paketi"
+
+msgid "entries"
+msgstr "kayit"
+
+msgid "updated"
+msgstr "guncellendi"
+
+msgid "No log entries found"
+msgstr "Log kaydi bulunamadi"
+
+msgid "Download failed"
+msgstr "Indirme basarisiz"
+
+msgid "Diagnostics generation failed"
+msgstr "Tani paketi olusturulamadi"

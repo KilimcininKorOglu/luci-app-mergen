@@ -1,0 +1,162 @@
+<%+header%>
+
+<link rel="stylesheet" href="<%=resource%>/mergen/mergen.css" />
+
+<h2><%:Mergen%> - <%:Interfaces%></h2>
+
+<p><%:Network interfaces used by Mergen routing rules with status and health checks.%></p>
+
+<!-- Interface Table -->
+<table class="mergen-rules-table" id="iface-table">
+	<thead>
+		<tr>
+			<th><%:Name%></th>
+			<th><%:Status%></th>
+			<th><%:IP Address%></th>
+			<th><%:Mergen Rules%></th>
+			<th><%:Actions%></th>
+		</tr>
+	</thead>
+	<tbody id="iface-body">
+		<tr><td colspan="5"><%:Loading...%></td></tr>
+	</tbody>
+</table>
+
+<!-- Ping Test Panel -->
+<div class="mergen-ping-panel" id="ping-panel" style="display:none">
+	<h3 id="ping-title"><%:Connectivity Test%></h3>
+	<div class="mergen-ping-form">
+		<input type="text" id="ping-target" class="cbi-input-text"
+			placeholder="8.8.8.8" value="8.8.8.8">
+		<select id="ping-count" class="cbi-input-select">
+			<option value="3">3 ping</option>
+			<option value="5" selected>5 ping</option>
+			<option value="10">10 ping</option>
+		</select>
+		<button class="cbi-button cbi-button-apply" id="ping-btn"
+			onclick="MergenIface.runPing(); return false;">
+			<%:Ping%>
+		</button>
+	</div>
+	<pre id="ping-result" class="mergen-log" style="display:none"></pre>
+	<div class="mergen-cards" id="ping-stats" style="display:none">
+		<div class="mergen-card">
+			<h4><%:Transmitted%></h4>
+			<div class="value" id="ping-tx">-</div>
+		</div>
+		<div class="mergen-card">
+			<h4><%:Received%></h4>
+			<div class="value" id="ping-rx">-</div>
+		</div>
+		<div class="mergen-card">
+			<h4><%:Loss%></h4>
+			<div class="value" id="ping-loss">-</div>
+		</div>
+		<div class="mergen-card">
+			<h4><%:Avg Latency%></h4>
+			<div class="value" id="ping-avg">-</div>
+		</div>
+	</div>
+</div>
+
+<script src="<%=resource%>/mergen/mergen.js"></script>
+
+<script>
+var MergenIface = {
+
+	currentIface: '',
+
+	init: function() {
+		this.loadInterfaces();
+	},
+
+	loadInterfaces: function() {
+		var self = this;
+		MergenUI.rpcCall('interfaces').then(function(data) {
+			if (data.success && data.interfaces) {
+				self.renderTable(data.interfaces);
+			}
+		}).catch(function(err) {
+			document.getElementById('iface-body').innerHTML =
+				'<tr><td colspan="5"><%:Error%>: ' + err.message + '</td></tr>';
+		});
+	},
+
+	renderTable: function(ifaces) {
+		var tbody = document.getElementById('iface-body');
+		tbody.innerHTML = '';
+
+		if (ifaces.length === 0) {
+			tbody.innerHTML = '<tr><td colspan="5"><%:No interfaces found%></td></tr>';
+			return;
+		}
+
+		for (var i = 0; i < ifaces.length; i++) {
+			var iface = ifaces[i];
+			var tr = document.createElement('tr');
+			var statusClass = iface.status === 'up' ? 'mergen-badge-ok'
+				: (iface.status === 'down' ? 'mergen-badge-err' : 'mergen-badge-off');
+
+			tr.innerHTML = '<td><strong>' + iface.name + '</strong></td>'
+				+ '<td><span class="mergen-badge ' + statusClass + '">'
+				+ iface.status + '</span></td>'
+				+ '<td>' + (iface.ip || '-') + '</td>'
+				+ '<td>' + iface.rules + '</td>'
+				+ '<td>'
+				+ '<button class="cbi-button cbi-button-neutral" '
+				+ 'onclick="MergenIface.showPing(\'' + iface.name + '\')">'
+				+ '<%:Ping%></button>'
+				+ '</td>';
+			tbody.appendChild(tr);
+		}
+	},
+
+	showPing: function(ifaceName) {
+		this.currentIface = ifaceName;
+		document.getElementById('ping-panel').style.display = 'block';
+		document.getElementById('ping-title').textContent =
+			'<%:Connectivity Test%> — ' + ifaceName;
+		document.getElementById('ping-result').style.display = 'none';
+		document.getElementById('ping-stats').style.display = 'none';
+	},
+
+	runPing: function() {
+		var target = document.getElementById('ping-target').value.trim();
+		var count = document.getElementById('ping-count').value;
+		var btn = document.getElementById('ping-btn');
+
+		if (!target) return;
+		btn.disabled = true;
+
+		MergenUI.rpcCall('ping', {
+			target: target,
+			count: count,
+			iface: this.currentIface
+		}).then(function(data) {
+			btn.disabled = false;
+			if (data.success) {
+				document.getElementById('ping-result').style.display = 'block';
+				document.getElementById('ping-result').textContent = data.raw;
+
+				document.getElementById('ping-stats').style.display = 'grid';
+				document.getElementById('ping-tx').textContent = data.transmitted;
+				document.getElementById('ping-rx').textContent = data.received;
+				document.getElementById('ping-loss').textContent = data.loss + '%';
+				document.getElementById('ping-avg').textContent =
+					data.rtt_avg ? data.rtt_avg + ' ms' : '-';
+			} else {
+				alert(data.error || '<%:Ping failed%>');
+			}
+		}).catch(function(err) {
+			btn.disabled = false;
+			alert('<%:Error%>: ' + err.message);
+		});
+	}
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+	MergenIface.init();
+});
+</script>
+
+<%+footer%>

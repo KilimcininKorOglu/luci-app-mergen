@@ -76,7 +76,7 @@ ASN discovery tool: search, detail panel, prefix preview, one-click rule creatio
 
 ### T040 - Interfaces & Logs Pages
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 3 days
 

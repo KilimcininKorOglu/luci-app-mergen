@@ -325,6 +325,87 @@
 	margin-bottom: 0.5rem;
 }
 
+/* ── Interfaces Page ── */
+
+.mergen-ping-panel {
+	margin-top: 1.5rem;
+	padding: 1rem;
+	border: 1px solid var(--border-color-medium, #ddd);
+	border-radius: 4px;
+	background: var(--background-color-high, #fff);
+}
+
+.mergen-ping-panel h3 {
+	margin: 0 0 0.75rem 0;
+}
+
+.mergen-ping-form {
+	display: flex;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+	align-items: center;
+	margin-bottom: 0.75rem;
+}
+
+.mergen-ping-form input,
+.mergen-ping-form select {
+	padding: 0.35rem 0.5rem;
+}
+
+/* ── Logs Page ── */
+
+.mergen-log-filters {
+	display: flex;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+	align-items: center;
+	margin-bottom: 0.75rem;
+}
+
+.mergen-log-filters select,
+.mergen-log-filters input[type="text"] {
+	padding: 0.35rem 0.5rem;
+}
+
+.mergen-log-filters input[type="text"] {
+	flex: 1;
+	min-width: 150px;
+}
+
+.mergen-auto-refresh-label {
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.mergen-log-live {
+	max-height: 500px;
+	min-height: 200px;
+}
+
+.mergen-log-info {
+	font-size: 0.85rem;
+	color: var(--text-color-medium, #666);
+	margin-bottom: 0.5rem;
+}
+
+.mergen-log-timestamp {
+	margin-left: 0.5rem;
+	font-style: italic;
+}
+
+.log-level-error {
+	background: #fff0f0;
+}
+
+.log-level-warning {
+	background: #fffde7;
+}
+
+.log-msg {
+	font-family: monospace;
+	font-size: 0.85rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
 	.mergen-cards {

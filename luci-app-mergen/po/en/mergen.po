@@ -336,3 +336,90 @@ msgstr "is already in comparison"
 
 msgid "Maximum 4 ASNs can be compared"
 msgstr "Maximum 4 ASNs can be compared"
+
+msgid "Interfaces"
+msgstr "Interfaces"
+
+msgid "Network interfaces used by Mergen routing rules with status and health checks."
+msgstr "Network interfaces used by Mergen routing rules with status and health checks."
+
+msgid "Name"
+msgstr "Name"
+
+msgid "IP Address"
+msgstr "IP Address"
+
+msgid "Mergen Rules"
+msgstr "Mergen Rules"
+
+msgid "Actions"
+msgstr "Actions"
+
+msgid "Loading..."
+msgstr "Loading..."
+
+msgid "No interfaces found"
+msgstr "No interfaces found"
+
+msgid "Connectivity Test"
+msgstr "Connectivity Test"
+
+msgid "Ping"
+msgstr "Ping"
+
+msgid "Transmitted"
+msgstr "Transmitted"
+
+msgid "Received"
+msgstr "Received"
+
+msgid "Loss"
+msgstr "Loss"
+
+msgid "Avg Latency"
+msgstr "Avg Latency"
+
+msgid "Ping failed"
+msgstr "Ping failed"
+
+msgid "Logs"
+msgstr "Logs"
+
+msgid "View and filter Mergen system logs with live updates."
+msgstr "View and filter Mergen system logs with live updates."
+
+msgid "All Levels"
+msgstr "All Levels"
+
+msgid "Filter text..."
+msgstr "Filter text..."
+
+msgid "lines"
+msgstr "lines"
+
+msgid "Auto-refresh"
+msgstr "Auto-refresh"
+
+msgid "Refresh"
+msgstr "Refresh"
+
+msgid "Download Log"
+msgstr "Download Log"
+
+msgid "Diagnostics Bundle"
+msgstr "Diagnostics Bundle"
+
+msgid "entries"
+msgstr "entries"
+
+msgid "updated"
+msgstr "updated"
+
+msgid "No log entries found"
+msgstr "No log entries found"
+
+msgid "Download failed"
+msgstr "Download failed"
+
+msgid "Diagnostics generation failed"
+msgstr "Diagnostics generation failed"

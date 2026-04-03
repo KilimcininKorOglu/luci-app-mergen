@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 9     | 18%        |
+| NOT_STARTED | 8     | 16%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 40    | 82%        |
+| COMPLETED   | 41    | 84%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -100,7 +100,7 @@
 |------|---------|-----------------------------------|----------|--------|-------------|--------------|
 | T038 | F012    | Rules Page Advanced               | P3       | 2d     | COMPLETED   | T036         |
 | T039 | F012    | ASN Browser Page                  | P3       | 3d     | COMPLETED   | T034, T005   |
-| T040 | F012    | Interfaces & Logs Pages           | P3       | 3d     | NOT_STARTED | T034         |
+| T040 | F012    | Interfaces & Logs Pages           | P3       | 3d     | COMPLETED   | T034         |
 | T041 | F012    | Advanced & Provider Settings Full | P3       | 2d     | NOT_STARTED | T037         |
 
 ### Phase 6: Advanced Features & Distribution (6 tasks)
