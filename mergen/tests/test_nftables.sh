@@ -326,6 +326,8 @@ setUp() {
 	MERGEN_ROUTE_APPLIED_COUNT=0
 	MERGEN_ROUTE_FAILED_COUNT=0
 	MERGEN_NFT_AVAILABLE=""
+	MERGEN_IPSET_AVAILABLE=""
+	MERGEN_ENGINE_ACTIVE=""
 
 	_NFT_TABLES=""
 	_NFT_CHAINS=""
@@ -552,6 +554,8 @@ test_apply_uses_nftables_when_available() {
 
 test_apply_fallback_without_nftables() {
 	MERGEN_NFT_AVAILABLE="0"
+	MERGEN_IPSET_AVAILABLE="0"
+	MERGEN_ENGINE_ACTIVE=""
 	_MOCK_FOREACH_SECTIONS="rule1"
 	_mock_uci_set "mergen.rule1.name=test_fb"
 	_mock_uci_set "mergen.rule1.ip=10.0.0.0/8"

@@ -190,19 +190,20 @@ ${MERGEN_RESOLVE_RESULT_V4}"
 $prefix_list
 EOF
 
-	# nftables set-based routing (efficient for large prefix lists)
-	if mergen_nft_available; then
-		# Create set, add prefixes, add fwmark rule
-		if mergen_nft_set_create "$rule_name"; then
-			if mergen_nft_set_add "$rule_name" "$prefix_list"; then
+	# Set-based routing via common interface (nftables or ipset)
+	mergen_engine_detect
+	if [ "$MERGEN_ENGINE_ACTIVE" != "none" ]; then
+		# Create set, add prefixes, add fwmark/MARK rule
+		if mergen_set_create "$rule_name"; then
+			if mergen_set_add "$rule_name" "$prefix_list"; then
 				# Use table_num as fwmark (unique per rule)
-				mergen_nft_rule_add "$rule_name" "$table_num"
+				mergen_set_mark_rule "$rule_name" "$table_num"
 				# Single ip rule for fwmark-based routing
 				ip rule add fwmark "$table_num" lookup "$table_num" priority "$priority" 2>/dev/null
 			fi
 		fi
 	else
-		# Fallback: individual ip rules per prefix (less efficient)
+		# Fallback: individual ip rules per prefix (no set engine available)
 		while IFS= read -r line; do
 			[ -z "$line" ] && continue
 			ip rule add to "$line" lookup "$table_num" priority "$priority" 2>/dev/null
@@ -236,8 +237,8 @@ mergen_route_remove() {
 
 	mergen_log "info" "Route" "Kural '${rule_name}' kaldırılıyor (tablo: ${table_num})"
 
-	# Remove nftables set and fwmark rule for this rule
-	mergen_nft_set_destroy "$rule_name"
+	# Remove set and fwmark/MARK rule via common interface
+	mergen_set_destroy "$rule_name"
 
 	# Remove all ip rules pointing to this table (including fwmark rules)
 	# Loop until no more rules exist for this table
@@ -379,8 +380,8 @@ mergen_route_remove_all() {
 
 	mergen_list_rules _remove_all_cb
 
-	# Clean up entire nftables table (catches any orphaned sets)
-	mergen_nft_cleanup
+	# Clean up entire set engine resources (catches any orphaned sets)
+	mergen_set_cleanup
 
 	mergen_log "info" "Route" "Tüm kurallar kaldırıldı."
 	return 0
@@ -464,8 +465,8 @@ mergen_snapshot_create() {
 		cp /etc/config/mergen "${MERGEN_SNAPSHOT_DIR}/uci.backup" 2>/dev/null
 	fi
 
-	# Save nftables state
-	mergen_nft_snapshot_save
+	# Save set engine state (nftables or ipset)
+	mergen_set_snapshot_save
 
 	# Write snapshot metadata
 	cat > "${MERGEN_SNAPSHOT_DIR}/meta" <<METAEOF
@@ -536,8 +537,8 @@ mergen_snapshot_restore() {
 		}
 	fi
 
-	# Step 4: Restore nftables state
-	mergen_nft_snapshot_restore
+	# Step 4: Restore set engine state (nftables or ipset)
+	mergen_set_snapshot_restore
 
 	mergen_log "info" "Snapshot" "Routing durumu geri yuklendi."
 	return 0
@@ -940,5 +941,345 @@ mergen_nft_snapshot_restore() {
 		nft -f "${MERGEN_SNAPSHOT_DIR}/nftsets.save" 2>/dev/null
 		mergen_log "debug" "NFT" "nftables durumu snapshot'tan geri yüklendi."
 	fi
+	return 0
+}
+
+# ── ipset Fallback ───────────────────────────────────────────
+
+MERGEN_IPSET_AVAILABLE=""
+
+# Check if ipset command is available
+mergen_ipset_available() {
+	if [ -z "$MERGEN_IPSET_AVAILABLE" ]; then
+		if command -v ipset >/dev/null 2>&1; then
+			MERGEN_IPSET_AVAILABLE="1"
+		else
+			MERGEN_IPSET_AVAILABLE="0"
+		fi
+	fi
+	[ "$MERGEN_IPSET_AVAILABLE" = "1" ]
+}
+
+# Create an ipset for a rule
+# Usage: mergen_ipset_create <rule_name>
+mergen_ipset_create() {
+	local rule_name="$1"
+	local set_name="mergen_${rule_name}"
+
+	if [ -z "$rule_name" ]; then
+		mergen_log "error" "IPSET" "[!] Hata: Kural adı belirtilmeli."
+		return 1
+	fi
+
+	if ! mergen_ipset_available; then
+		mergen_log "error" "IPSET" "[!] Hata: ipset komutu bulunamadı."
+		return 1
+	fi
+
+	# Create hash:net set (idempotent with -exist)
+	if ! ipset create "$set_name" hash:net -exist 2>/dev/null; then
+		mergen_log "error" "IPSET" "[!] Hata: ipset oluşturulamadı: ${set_name}"
+		return 1
+	fi
+
+	mergen_log "debug" "IPSET" "Set oluşturuldu: ${set_name}"
+	return 0
+}
+
+# Add prefixes to an ipset (bulk via ipset restore)
+# Usage: mergen_ipset_add <rule_name> <prefix_list>
+mergen_ipset_add() {
+	local rule_name="$1"
+	local prefix_list="$2"
+	local set_name="mergen_${rule_name}"
+
+	if [ -z "$rule_name" ] || [ -z "$prefix_list" ]; then
+		mergen_log "error" "IPSET" "[!] Hata: Kural adı ve prefix listesi gerekli."
+		return 1
+	fi
+
+	# Build restore file for bulk loading
+	local restore_file="${MERGEN_TMP:-/tmp/mergen}/ipset_restore_${rule_name}.txt"
+	[ -d "${MERGEN_TMP:-/tmp/mergen}" ] || mkdir -p "${MERGEN_TMP:-/tmp/mergen}"
+
+	{
+		# Flush existing entries first
+		printf 'flush %s\n' "$set_name"
+		# Add each prefix
+		echo "$prefix_list" | sed '/^$/d' | while IFS= read -r prefix; do
+			printf 'add %s %s\n' "$set_name" "$prefix"
+		done
+	} > "$restore_file"
+
+	if ! ipset restore -exist < "$restore_file" 2>/dev/null; then
+		mergen_log "error" "IPSET" "[!] Hata: Prefix'ler set'e eklenemedi: ${set_name}"
+		rm -f "$restore_file"
+		return 1
+	fi
+
+	rm -f "$restore_file"
+
+	local count
+	count="$(echo "$prefix_list" | sed '/^$/d' | wc -l | tr -d ' ')"
+	mergen_log "info" "IPSET" "Set '${set_name}' güncellendi: ${count} prefix"
+	return 0
+}
+
+# Flush all elements from an ipset
+# Usage: mergen_ipset_flush <rule_name>
+mergen_ipset_flush() {
+	local rule_name="$1"
+	local set_name="mergen_${rule_name}"
+
+	if ! mergen_ipset_available; then
+		return 1
+	fi
+
+	ipset flush "$set_name" 2>/dev/null
+	return $?
+}
+
+# Destroy an ipset and its associated iptables MARK rule
+# Usage: mergen_ipset_destroy <rule_name>
+mergen_ipset_destroy() {
+	local rule_name="$1"
+	local set_name="mergen_${rule_name}"
+
+	if ! mergen_ipset_available; then
+		return 0
+	fi
+
+	# Remove iptables MARK rules referencing this set
+	# Loop to remove all matching rules (there might be duplicates)
+	local max=100 i=0
+	while iptables -t mangle -D PREROUTING \
+		-m set --match-set "$set_name" dst -j MARK --set-mark 0/0 2>/dev/null || \
+		iptables -t mangle -D PREROUTING \
+		-m set --match-set "$set_name" dst -j MARK 2>/dev/null; do
+		i=$((i + 1))
+		[ "$i" -ge "$max" ] && break
+	done
+
+	# Destroy the set
+	ipset destroy "$set_name" 2>/dev/null
+
+	mergen_log "debug" "IPSET" "Set kaldırıldı: ${set_name}"
+	return 0
+}
+
+# Add an iptables MARK rule for an ipset
+# Usage: mergen_ipset_mark_add <rule_name> <fwmark>
+mergen_ipset_mark_add() {
+	local rule_name="$1"
+	local fwmark="$2"
+	local set_name="mergen_${rule_name}"
+
+	if [ -z "$rule_name" ] || [ -z "$fwmark" ]; then
+		mergen_log "error" "IPSET" "[!] Hata: Kural adı ve fwmark değeri gerekli."
+		return 1
+	fi
+
+	if ! mergen_ipset_available; then
+		mergen_log "error" "IPSET" "[!] Hata: ipset komutu bulunamadı."
+		return 1
+	fi
+
+	# Check if rule already exists
+	if iptables -t mangle -C PREROUTING \
+		-m set --match-set "$set_name" dst -j MARK --set-mark "$fwmark" 2>/dev/null; then
+		mergen_log "debug" "IPSET" "MARK kuralı zaten mevcut: ${set_name}"
+		return 0
+	fi
+
+	if ! iptables -t mangle -A PREROUTING \
+		-m set --match-set "$set_name" dst -j MARK --set-mark "$fwmark" 2>/dev/null; then
+		mergen_log "error" "IPSET" "[!] Hata: MARK kuralı eklenemedi: ${set_name} -> ${fwmark}"
+		return 1
+	fi
+
+	mergen_log "debug" "IPSET" "MARK kuralı eklendi: ${set_name} -> mark ${fwmark}"
+	return 0
+}
+
+# Clean up all mergen ipset resources
+mergen_ipset_cleanup() {
+	if ! mergen_ipset_available; then
+		return 0
+	fi
+
+	# Remove all iptables MARK rules referencing mergen_ sets
+	# List all mergen ipsets and remove associated rules
+	local set_name
+	ipset list -n 2>/dev/null | grep '^mergen_' | while IFS= read -r set_name; do
+		local max=100 i=0
+		while iptables -t mangle -D PREROUTING \
+			-m set --match-set "$set_name" dst -j MARK 2>/dev/null; do
+			i=$((i + 1))
+			[ "$i" -ge "$max" ] && break
+		done
+		ipset destroy "$set_name" 2>/dev/null
+	done
+
+	mergen_log "debug" "IPSET" "Tüm ipset kaynakları temizlendi."
+	return 0
+}
+
+# Save ipset state to snapshot directory
+mergen_ipset_snapshot_save() {
+	if ! mergen_ipset_available; then
+		return 0
+	fi
+
+	ipset save 2>/dev/null | grep 'mergen_' > "${MERGEN_SNAPSHOT_DIR}/ipsets.save" 2>/dev/null
+	if [ -s "${MERGEN_SNAPSHOT_DIR}/ipsets.save" ]; then
+		mergen_log "debug" "IPSET" "ipset durumu snapshot'a kaydedildi."
+	fi
+	return 0
+}
+
+# Restore ipset state from snapshot
+mergen_ipset_snapshot_restore() {
+	if ! mergen_ipset_available; then
+		return 0
+	fi
+
+	if [ -f "${MERGEN_SNAPSHOT_DIR}/ipsets.save" ]; then
+		# Destroy existing mergen sets first
+		ipset list -n 2>/dev/null | grep '^mergen_' | while IFS= read -r set_name; do
+			ipset destroy "$set_name" 2>/dev/null
+		done
+		# Restore from snapshot
+		ipset restore -exist < "${MERGEN_SNAPSHOT_DIR}/ipsets.save" 2>/dev/null
+		mergen_log "debug" "IPSET" "ipset durumu snapshot'tan geri yüklendi."
+	fi
+	return 0
+}
+
+# ── Packet Engine Abstraction ────────────────────────────────
+
+# Engine detection: auto → nftables → ipset → none
+# UCI setting: mergen.global.packet_engine (auto/nftables/ipset)
+MERGEN_ENGINE_ACTIVE=""
+
+# Detect and set the active packet engine
+# Caches result in MERGEN_ENGINE_ACTIVE
+mergen_engine_detect() {
+	if [ -n "$MERGEN_ENGINE_ACTIVE" ]; then
+		return 0
+	fi
+
+	# Read UCI preference
+	mergen_uci_get "global" "packet_engine" "auto"
+	local preference="$MERGEN_UCI_RESULT"
+
+	case "$preference" in
+		nftables)
+			if mergen_nft_available; then
+				MERGEN_ENGINE_ACTIVE="nftables"
+			else
+				mergen_log "error" "Engine" "[!] Hata: nftables seçildi ama nft komutu bulunamadı."
+				MERGEN_ENGINE_ACTIVE="none"
+			fi
+			;;
+		ipset)
+			if mergen_ipset_available; then
+				MERGEN_ENGINE_ACTIVE="ipset"
+			else
+				mergen_log "error" "Engine" "[!] Hata: ipset seçildi ama ipset komutu bulunamadı."
+				MERGEN_ENGINE_ACTIVE="none"
+			fi
+			;;
+		auto|*)
+			if mergen_nft_available; then
+				MERGEN_ENGINE_ACTIVE="nftables"
+			elif mergen_ipset_available; then
+				MERGEN_ENGINE_ACTIVE="ipset"
+			else
+				MERGEN_ENGINE_ACTIVE="none"
+			fi
+			;;
+	esac
+
+	mergen_log "info" "Engine" "Paket motoru: ${MERGEN_ENGINE_ACTIVE}"
+	return 0
+}
+
+# Get the active engine name (for status/diag commands)
+mergen_engine_info() {
+	mergen_engine_detect
+	echo "$MERGEN_ENGINE_ACTIVE"
+}
+
+# ── Common Interface (dispatches to nftables or ipset) ───────
+
+mergen_set_create() {
+	mergen_engine_detect
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables) mergen_nft_set_create "$@" ;;
+		ipset)    mergen_ipset_create "$@" ;;
+		*)        return 1 ;;
+	esac
+}
+
+mergen_set_add() {
+	mergen_engine_detect
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables) mergen_nft_set_add "$@" ;;
+		ipset)    mergen_ipset_add "$@" ;;
+		*)        return 1 ;;
+	esac
+}
+
+mergen_set_flush() {
+	mergen_engine_detect
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables) mergen_nft_set_flush "$@" ;;
+		ipset)    mergen_ipset_flush "$@" ;;
+		*)        return 1 ;;
+	esac
+}
+
+mergen_set_destroy() {
+	mergen_engine_detect
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables) mergen_nft_set_destroy "$@" ;;
+		ipset)    mergen_ipset_destroy "$@" ;;
+		*)        return 0 ;;
+	esac
+}
+
+mergen_set_mark_rule() {
+	mergen_engine_detect
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables) mergen_nft_rule_add "$@" ;;
+		ipset)    mergen_ipset_mark_add "$@" ;;
+		*)        return 1 ;;
+	esac
+}
+
+mergen_set_cleanup() {
+	mergen_engine_detect
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables) mergen_nft_cleanup ;;
+		ipset)    mergen_ipset_cleanup ;;
+		*)        return 0 ;;
+	esac
+}
+
+mergen_set_snapshot_save() {
+	mergen_engine_detect
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables) mergen_nft_snapshot_save ;;
+		ipset)    mergen_ipset_snapshot_save ;;
+	esac
+	return 0
+}
+
+mergen_set_snapshot_restore() {
+	mergen_engine_detect
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables) mergen_nft_snapshot_restore ;;
+		ipset)    mergen_ipset_snapshot_restore ;;
+	esac
 	return 0
 }

@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 31    | 63%        |
+| NOT_STARTED | 30    | 61%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 18    | 37%        |
+| COMPLETED   | 19    | 39%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -63,7 +63,7 @@
 | T015 | F005    | Atomic Apply                      | P1       | 2d     | COMPLETED   | T014             |
 | T016 | F005    | Watchdog Timer & Safe Mode        | P1       | 2d     | COMPLETED   | T012, T014       |
 | T017 | F006    | nftables Set Management           | P1       | 2.5d   | COMPLETED   | T008             |
-| T018 | F006    | ipset Fallback                    | P2       | 1.5d   | NOT_STARTED | T017             |
+| T018 | F006    | ipset Fallback                    | P2       | 1.5d   | COMPLETED   | T017             |
 | T019 | F007    | Logging Framework                 | P2       | 1.5d   | NOT_STARTED | T003             |
 | T020 | F007    | Extended CLI Commands             | P2       | 2d     | NOT_STARTED | T010, T019       |
 | T021 | F007    | Security Hardening                | P1       | 1.5d   | NOT_STARTED | T009, T005       |
