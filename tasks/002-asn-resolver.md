@@ -74,7 +74,7 @@ First provider implementation that fetches announced prefix lists for an ASN fro
 
 ### T006 - Prefix Cache Layer
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 1.5 days
 
