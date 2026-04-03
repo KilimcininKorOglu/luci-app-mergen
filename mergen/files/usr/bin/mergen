@@ -796,6 +796,11 @@ cmd_status() {
 	mergen_resolver_init
 	printf "Onbellek:     %s\n" "$(mergen_cache_stats)"
 
+	# Provider health
+	echo ""
+	printf "Provider Sagligi:\n"
+	mergen_health_status
+
 	# Last sync time
 	local last_sync_file="${MERGEN_TMP}/last_sync"
 	if [ -f "$last_sync_file" ]; then
