@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 47    | 96%        |
+| NOT_STARTED | 46    | 94%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 2     | 4%         |
+| COMPLETED   | 3     | 6%         |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -48,7 +48,7 @@
 | T006 | F002    | Prefix Cache Layer                | P2       | 1.5d   | NOT_STARTED | T004, T005   |
 | T007 | F003    | Rule CRUD Operations              | P1       | 2d     | NOT_STARTED | T003         |
 | T008 | F003    | Policy Routing (ip rule/route)    | P1       | 2.5d   | NOT_STARTED | T003, T007   |
-| T009 | F003    | Input Validation Library          | P1       | 1d     | NOT_STARTED | T001         |
+| T009 | F003    | Input Validation Library          | P1       | 1d     | COMPLETED   | T001         |
 | T010 | F004    | Core CLI Commands                 | P1       | 3d     | NOT_STARTED | T003-T009    |
 | T011 | F004    | Utility CLI (version/help/valid.) | P2       | 1d     | NOT_STARTED | T010         |
 | T012 | F004    | Watchdog Daemon                   | P2       | 2d     | NOT_STARTED | T001, T003   |
