@@ -83,7 +83,7 @@ Status cards, active rules summary table, quick actions and recent operations fe
 
 ### T036 - Rules Page (Basic CRUD)
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 3 days
 

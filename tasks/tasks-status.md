@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 13    | 27%        |
+| NOT_STARTED | 12    | 24%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 36    | 73%        |
+| COMPLETED   | 37    | 76%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -91,7 +91,7 @@
 |------|---------|-----------------------------------|----------|--------|-------------|--------------|
 | T034 | F011    | LuCI Package Scaffold & RPC      | P2       | 2.5d   | COMPLETED   | T010         |
 | T035 | F011    | Overview Page                     | P2       | 2d     | COMPLETED   | T034         |
-| T036 | F011    | Rules Page (Basic CRUD)           | P2       | 3d     | NOT_STARTED | T034         |
+| T036 | F011    | Rules Page (Basic CRUD)           | P2       | 3d     | COMPLETED   | T034         |
 | T037 | F011    | Provider & Advanced Settings      | P3       | 2.5d   | NOT_STARTED | T034         |
 
 ### Phase 5: LuCI Advanced Pages (4 tasks)

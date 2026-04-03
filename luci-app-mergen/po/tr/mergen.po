@@ -147,3 +147,15 @@ msgstr "detay"
 
 msgid "Log Level"
 msgstr "Log Seviyesi"
+
+msgid "Tags"
+msgstr "Etiketler"
+
+msgid "Are you sure you want to delete this rule?"
+msgstr "Bu kurali silmek istediginizden emin misiniz?"
+
+msgid "Rules define which traffic should be routed through which interface. Each rule can target ASN numbers or IP/CIDR blocks."
+msgstr "Kurallar hangi trafigin hangi arayuzden yonlendirilecegini belirler. Her kural ASN numaralarini veya IP/CIDR bloklarini hedefleyebilir."
+
+msgid "Manage ASN/IP based policy routing rules. Rules define which traffic is routed through which interface."
+msgstr "ASN/IP tabanli politika yonlendirme kurallarini yonetin. Kurallar hangi trafigin hangi arayuzden yonlendirilecegini belirler."
