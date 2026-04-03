@@ -80,7 +80,7 @@ Offline ASN resolution using a local MMDB database. Works without an internet co
 
 ### T025 - RouteViews & IRR/RADB Providers
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 2.5 days
 
