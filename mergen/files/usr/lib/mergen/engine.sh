@@ -998,3 +998,264 @@ mergen_rule_toggle_by_tag() {
 	mergen_log "info" "Engine" "${MERGEN_TAG_TOGGLE_COUNT} kural ${action_str} (etiket: ${filter_tag})"
 	return 0
 }
+
+# ── JSON Export ────────────────────────────────────────────
+
+# Export all rules as JSON to stdout
+# Output format matches PRD Section 4.3 schema
+mergen_rule_export_json() {
+	local first=1
+
+	printf '{\n  "rules": ['
+
+	_export_json_cb() {
+		local section="$1"
+		local name via priority enabled asn_val ip_val tags
+
+		config_get name "$section" "name" ""
+		[ -z "$name" ] && return
+
+		config_get via "$section" "via" ""
+		config_get priority "$section" "priority" "100"
+		config_get enabled "$section" "enabled" "1"
+		config_get asn_val "$section" "asn" ""
+		config_get ip_val "$section" "ip" ""
+		config_get tags "$section" "tag" ""
+
+		if [ "$first" -eq 1 ]; then
+			first=0
+		else
+			printf ','
+		fi
+
+		printf '\n    {\n'
+		printf '      "name": "%s",\n' "$name"
+
+		# Export targets
+		if [ -n "$asn_val" ]; then
+			local item_count=0 item
+			for item in $asn_val; do
+				item_count=$((item_count + 1))
+			done
+
+			if [ "$item_count" -eq 1 ]; then
+				printf '      "asn": %s,\n' "$asn_val"
+			else
+				printf '      "asn": ['
+				local item_first=1
+				for item in $asn_val; do
+					if [ "$item_first" -eq 1 ]; then
+						item_first=0
+					else
+						printf ', '
+					fi
+					printf '%s' "$item"
+				done
+				printf '],\n'
+			fi
+		elif [ -n "$ip_val" ]; then
+			local item_count=0 item
+			for item in $ip_val; do
+				item_count=$((item_count + 1))
+			done
+
+			if [ "$item_count" -eq 1 ]; then
+				printf '      "ip": "%s",\n' "$ip_val"
+			else
+				printf '      "ip": ['
+				local item_first=1
+				for item in $ip_val; do
+					if [ "$item_first" -eq 1 ]; then
+						item_first=0
+					else
+						printf ', '
+					fi
+					printf '"%s"' "$item"
+				done
+				printf '],\n'
+			fi
+		fi
+
+		printf '      "via": "%s",\n' "$via"
+		printf '      "priority": %s,\n' "$priority"
+		printf '      "enabled": %s' "$enabled"
+
+		# Tags (optional)
+		if [ -n "$tags" ]; then
+			printf ',\n      "tags": ['
+			local tag_first=1 t
+			for t in $tags; do
+				if [ "$tag_first" -eq 1 ]; then
+					tag_first=0
+				else
+					printf ', '
+				fi
+				printf '"%s"' "$t"
+			done
+			printf ']'
+		fi
+
+		printf '\n    }'
+	}
+
+	mergen_list_rules _export_json_cb
+
+	printf '\n  ]\n}\n'
+}
+
+# ── JSON Import ────────────────────────────────────────────
+
+# Import rules from a JSON file
+# Usage: mergen_rule_import_json <file> [replace]
+#   file    — path to JSON file
+#   replace — if "1", delete existing rules before import
+# Returns 0 on success, 1 on error
+# Sets MERGEN_IMPORT_COUNT with number of imported rules
+MERGEN_IMPORT_COUNT=0
+MERGEN_IMPORT_SKIP=0
+MERGEN_IMPORT_ERROR=0
+
+mergen_rule_import_json() {
+	local file="$1"
+	local replace="${2:-0}"
+	MERGEN_IMPORT_COUNT=0
+	MERGEN_IMPORT_SKIP=0
+	MERGEN_IMPORT_ERROR=0
+
+	if [ -z "$file" ]; then
+		mergen_log "error" "Engine" "[!] Hata: JSON dosya yolu belirtilmeli."
+		return 1
+	fi
+
+	if [ ! -f "$file" ]; then
+		mergen_log "error" "Engine" "[!] Hata: Dosya bulunamadı: $file"
+		return 1
+	fi
+
+	# Validate JSON structure — check that rules array exists
+	if ! jsonfilter -i "$file" -e '@.rules' >/dev/null 2>&1; then
+		mergen_log "error" "Engine" "[!] Hata: Geçersiz JSON formatı veya 'rules' dizisi bulunamadı: $file"
+		return 1
+	fi
+
+	# Get rule count
+	local rule_count
+	rule_count="$(jsonfilter -i "$file" -e '@.rules.length' 2>/dev/null)"
+	if [ -z "$rule_count" ] || [ "$rule_count" -eq 0 ] 2>/dev/null; then
+		mergen_log "warning" "Engine" "JSON dosyasında kural bulunamadı: $file"
+		return 0
+	fi
+
+	# Delete existing rules if --replace
+	if [ "$replace" = "1" ]; then
+		_import_delete_cb() {
+			local section="$1"
+			local name
+			config_get name "$section" "name" ""
+			if [ -n "$name" ]; then
+				mergen_rule_remove "$name"
+			fi
+		}
+		mergen_list_rules _import_delete_cb
+		mergen_log "info" "Engine" "Mevcut kurallar silindi (--replace)"
+	fi
+
+	# Import each rule
+	local idx=0
+	while [ "$idx" -lt "$rule_count" ]; do
+		local name via priority asn_val ip_val type targets
+
+		name="$(jsonfilter -i "$file" -e "@.rules[$idx].name" 2>/dev/null)"
+		via="$(jsonfilter -i "$file" -e "@.rules[$idx].via" 2>/dev/null)"
+		priority="$(jsonfilter -i "$file" -e "@.rules[$idx].priority" 2>/dev/null)"
+
+		if [ -z "$name" ] || [ -z "$via" ]; then
+			mergen_log "error" "Engine" "[!] Hata: Kural $idx: name veya via alanı eksik."
+			MERGEN_IMPORT_ERROR=$((MERGEN_IMPORT_ERROR + 1))
+			idx=$((idx + 1))
+			continue
+		fi
+
+		# Determine type: check asn first, then ip
+		asn_val="$(jsonfilter -i "$file" -e "@.rules[$idx].asn" 2>/dev/null)"
+		ip_val="$(jsonfilter -i "$file" -e "@.rules[$idx].ip" 2>/dev/null)"
+
+		if [ -n "$asn_val" ]; then
+			type="asn"
+			# jsonfilter returns array as space-separated or single value
+			# Convert spaces to commas for mergen_rule_add
+			targets="$(echo "$asn_val" | tr ' ' ',')"
+		elif [ -n "$ip_val" ]; then
+			type="ip"
+			targets="$(echo "$ip_val" | tr ' ' ',')"
+		else
+			mergen_log "error" "Engine" "[!] Hata: Kural '$name': asn veya ip alanı eksik."
+			MERGEN_IMPORT_ERROR=$((MERGEN_IMPORT_ERROR + 1))
+			idx=$((idx + 1))
+			continue
+		fi
+
+		# Check if rule already exists (skip unless replace mode)
+		if mergen_find_rule_by_name "$name"; then
+			mergen_log "warning" "Engine" "Kural zaten mevcut, atlanıyor: '$name'"
+			MERGEN_IMPORT_SKIP=$((MERGEN_IMPORT_SKIP + 1))
+			idx=$((idx + 1))
+			continue
+		fi
+
+		# Default priority
+		[ -z "$priority" ] && priority=""
+
+		if mergen_rule_add "$name" "$type" "$targets" "$via" "$priority"; then
+			MERGEN_IMPORT_COUNT=$((MERGEN_IMPORT_COUNT + 1))
+
+			# Import tags if present
+			local tags_val
+			tags_val="$(jsonfilter -i "$file" -e "@.rules[$idx].tags" 2>/dev/null)"
+			if [ -n "$tags_val" ]; then
+				local tag_item
+				for tag_item in $tags_val; do
+					mergen_rule_tag_add "$name" "$tag_item"
+				done
+			fi
+		else
+			MERGEN_IMPORT_ERROR=$((MERGEN_IMPORT_ERROR + 1))
+		fi
+
+		idx=$((idx + 1))
+	done
+
+	mergen_log "info" "Engine" "İçe aktarma: $MERGEN_IMPORT_COUNT eklendi, $MERGEN_IMPORT_SKIP atlandı, $MERGEN_IMPORT_ERROR hata"
+	return 0
+}
+
+# Load all JSON files from rules.d directory
+# Usage: mergen_load_rules_dir [directory]
+# Default directory: /etc/mergen/rules.d
+mergen_load_rules_dir() {
+	local dir="${1:-/etc/mergen/rules.d}"
+
+	if [ ! -d "$dir" ]; then
+		return 0
+	fi
+
+	local total_imported=0
+	local file
+
+	for file in "$dir"/*.json; do
+		[ -f "$file" ] || continue
+
+		mergen_log "info" "Engine" "Kural dosyası yükleniyor: $file"
+		if mergen_rule_import_json "$file"; then
+			total_imported=$((total_imported + MERGEN_IMPORT_COUNT))
+		else
+			mergen_log "error" "Engine" "[!] Hata: Dosya yüklenemedi: $file"
+		fi
+	done
+
+	if [ "$total_imported" -gt 0 ]; then
+		mergen_log "info" "Engine" "rules.d/: $total_imported kural yüklendi"
+	fi
+
+	return 0
+}

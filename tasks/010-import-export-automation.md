@@ -10,7 +10,7 @@ JSON import/export, cron-based automatic updates, hotplug integration, and the r
 
 ### T030 - JSON Import/Export
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 2 days
 

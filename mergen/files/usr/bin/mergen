@@ -44,6 +44,8 @@ Komutlar:
   log        Mergen loglarini filtrele ve goster
   validate   Yapilandirmayi dogrula (uygulamadan)
   tag        Kurala etiket ekle veya kaldir
+  import     JSON dosyasindan kural yukle
+  export     Kurallari JSON veya UCI olarak disa aktar
   version    Surum bilgisi goster
   help       Bu yardimi veya komut yardimini goster
 
@@ -236,6 +238,40 @@ Ornekler:
   mergen list --tag vpn
   mergen enable --tag vpn
   mergen disable --tag vpn
+HELP
+			;;
+		import)
+			cat <<'HELP'
+Kullanim: mergen import <dosya.json> [--replace]
+
+JSON dosyasindan kural yukler.
+
+Secenekler:
+  --replace    Mevcut tum kurallari silip yerine yenilerini yukle
+
+JSON formati:
+  {"rules": [{"name": "...", "asn": 13335, "via": "wg0", "priority": 100}]}
+
+Ornekler:
+  mergen import /etc/mergen/rules.d/office.json
+  mergen import rules.json --replace
+HELP
+			;;
+		export)
+			cat <<'HELP'
+Kullanim: mergen export [--format json|uci] [--output <dosya>]
+
+Mevcut kurallari JSON veya UCI formatinda disa aktarir.
+
+Secenekler:
+  --format json    JSON olarak disa aktar (varsayilan)
+  --format uci     UCI yapilandirmasi olarak disa aktar
+  --output <dosya> Ciktisi bir dosyaya yaz (varsayilan: stdout)
+
+Ornekler:
+  mergen export
+  mergen export --format json --output /tmp/rules.json
+  mergen export --format uci
 HELP
 			;;
 		version)
@@ -568,6 +604,94 @@ cmd_tag() {
 			echo "[!] Hata: Bilinmeyen alt komut. Kullanim:" >&2
 			echo "  mergen tag add <KURAL> <ETIKET>" >&2
 			echo "  mergen tag remove <KURAL> <ETIKET>" >&2
+			return 2
+			;;
+	esac
+}
+
+# ── Import ─────────────────────────────────────────────────
+
+cmd_import() {
+	local file="" replace=0
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--replace)
+				replace=1
+				shift
+				;;
+			-*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'. 'mergen help import' ile kullanimi gorun.\n" "$1" >&2
+				return 2
+				;;
+			*)
+				file="$1"
+				shift
+				;;
+		esac
+	done
+
+	if [ -z "$file" ]; then
+		echo "[!] Hata: JSON dosya yolu belirtilmeli." >&2
+		echo "Kullanim: mergen import <dosya.json> [--replace]" >&2
+		return 2
+	fi
+
+	if mergen_rule_import_json "$file" "$replace"; then
+		printf "[+] Ice aktarma tamamlandi: %s eklendi" "$MERGEN_IMPORT_COUNT"
+		[ "$MERGEN_IMPORT_SKIP" -gt 0 ] && printf ", %s atlandi" "$MERGEN_IMPORT_SKIP"
+		[ "$MERGEN_IMPORT_ERROR" -gt 0 ] && printf ", %s hata" "$MERGEN_IMPORT_ERROR"
+		printf "\n"
+		return 0
+	fi
+	return 1
+}
+
+# ── Export ─────────────────────────────────────────────────
+
+cmd_export() {
+	local format="json" output=""
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--format)
+				format="$2"
+				shift 2
+				;;
+			--output)
+				output="$2"
+				shift 2
+				;;
+			-*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'. 'mergen help export' ile kullanimi gorun.\n" "$1" >&2
+				return 2
+				;;
+			*)
+				printf "[!] Hata: Bilinmeyen arguman '%s'.\n" "$1" >&2
+				return 2
+				;;
+		esac
+	done
+
+	case "$format" in
+		json)
+			if [ -n "$output" ]; then
+				mergen_rule_export_json > "$output"
+				printf "[+] Kurallar disa aktarildi: %s\n" "$output"
+			else
+				mergen_rule_export_json
+			fi
+			;;
+		uci)
+			if [ -n "$output" ]; then
+				uci show mergen > "$output" 2>/dev/null
+				printf "[+] UCI yapilandirmasi disa aktarildi: %s\n" "$output"
+			else
+				uci show mergen 2>/dev/null
+			fi
+			;;
+		*)
+			printf "[!] Hata: Bilinmeyen format '%s'. Gecerli: json, uci\n" "$format" >&2
 			return 2
 			;;
 	esac
@@ -1125,6 +1249,12 @@ if [ "${MERGEN_SOURCED:-0}" != "1" ]; then
 			;;
 		tag)
 			shift; cmd_tag "$@"
+			;;
+		import)
+			shift; cmd_import "$@"
+			;;
+		export)
+			shift; cmd_export "$@"
 			;;
 		version)
 			cmd_version
