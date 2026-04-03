@@ -2,7 +2,10 @@
 # Mergen Utilities
 # Input validation, sanitization, and helper functions
 
-. /usr/lib/mergen/core.sh
+# Source core.sh if not already loaded (allows test override)
+if ! type mergen_log >/dev/null 2>&1; then
+	. /usr/lib/mergen/core.sh
+fi
 
 # ── Shell Injection Protection ───────────────────────────
 

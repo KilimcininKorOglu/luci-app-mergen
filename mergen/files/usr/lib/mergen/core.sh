@@ -189,10 +189,19 @@ mergen_list_providers() {
 	config_foreach _mergen_collect_providers_cb "provider"
 
 	# Sort by priority and call callback
-	echo "$provider_list" | sort -t: -k1 -n | while IFS=: read -r _prio section_id; do
-		[ -z "$section_id" ] && continue
-		"$callback" "$section_id"
-	done
+	# NOTE: Here-document is used instead of pipe to avoid subshell.
+	# A piped while loop (echo | while) runs in a subshell, which means
+	# variable changes inside the callback would be lost.
+	local _sorted_providers
+	_sorted_providers="$(echo "$provider_list" | sort -t: -k1 -n)"
+
+	local _prio _section_id
+	while IFS=: read -r _prio _section_id; do
+		[ -z "$_section_id" ] && continue
+		"$callback" "$_section_id"
+	done <<EOF
+$_sorted_providers
+EOF
 }
 
 # Get provider details into variables
