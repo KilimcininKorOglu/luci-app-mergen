@@ -211,6 +211,10 @@ ${MERGEN_RESOLVE_RESULT_V6}"
 				mergen_log "warning" "Route" "ASN ${asn_item} çözümlenemedi, atlanıyor."
 			fi
 		done
+	elif [ "$type" = "domain" ]; then
+		# Domain-based rule: configure dnsmasq to populate nft/ipset sets
+		mergen_dnsmasq_apply "$rule_name" "$targets" "$table_num" "$via" "$priority"
+		return $?
 	else
 		mergen_log "error" "Route" "[!] Hata: Bilinmeyen kural tipi: ${type}"
 		return 1
@@ -353,6 +357,9 @@ mergen_route_remove() {
 	local table_num="$MERGEN_TABLE_NUM"
 
 	mergen_log "info" "Route" "Kural '${rule_name}' kaldırılıyor (tablo: ${table_num})"
+
+	# Remove dnsmasq config for domain rules (idempotent)
+	mergen_dnsmasq_remove "$rule_name"
 
 	# Remove set and fwmark/MARK rule via common interface (v4 + v6)
 	mergen_set_destroy "$rule_name"
@@ -1719,4 +1726,147 @@ mergen_set_mark_rule_v6() {
 		ipset)    mergen_ipset_mark_add_v6 "$@" ;;
 		*)        return 1 ;;
 	esac
+}
+
+# ── DNS-Based Routing (dnsmasq integration) ───────────────
+
+MERGEN_DNSMASQ_DIR="/tmp/dnsmasq.d"
+MERGEN_DNSMASQ_CONF_PREFIX="mergen-dns-"
+
+# Apply domain-based routing rule via dnsmasq nftset/ipset integration
+# Creates nft/ipset sets, writes dnsmasq drop-in config, restarts dnsmasq
+# Usage: mergen_dnsmasq_apply <rule_name> <domains> <table_num> <via> <priority>
+mergen_dnsmasq_apply() {
+	local rule_name="$1"
+	local domains="$2"
+	local table_num="$3"
+	local via="$4"
+	local priority="$5"
+
+	if [ -z "$rule_name" ] || [ -z "$domains" ]; then
+		mergen_log "error" "DNS" "[!] Hata: Kural adı ve domain listesi gerekli."
+		return 1
+	fi
+
+	mergen_log "info" "DNS" "Domain kuralı '${rule_name}' uygulanıyor..."
+
+	# Detect gateway for the interface
+	if ! mergen_detect_gateway "$via"; then
+		return 1
+	fi
+	local gateway="$MERGEN_GATEWAY_ADDR"
+
+	# Add default route via gateway to the routing table
+	ip route add default via "$gateway" dev "$via" table "$table_num" 2>/dev/null || \
+		ip route replace default via "$gateway" dev "$via" table "$table_num" 2>/dev/null
+
+	# Detect set engine
+	mergen_engine_detect
+	local set_name="mergen_${rule_name}"
+
+	# Create the set and fwmark rule
+	if [ "$MERGEN_ENGINE_ACTIVE" = "nftables" ]; then
+		# Create nft set (IPv4)
+		if mergen_set_create "$rule_name"; then
+			mergen_set_mark_rule "$rule_name" "$table_num"
+			ip rule add fwmark "$table_num" lookup "$table_num" priority "$priority" 2>/dev/null
+		fi
+
+		# Create nft set (IPv6) if enabled
+		mergen_uci_get "global" "ipv6_enabled" "0"
+		local ipv6_enabled="$MERGEN_UCI_RESULT"
+		if [ "$ipv6_enabled" = "1" ]; then
+			if mergen_set_create_v6 "$rule_name"; then
+				mergen_set_mark_rule_v6 "$rule_name" "$table_num"
+				ip -6 rule add fwmark "$table_num" lookup "$table_num" priority "$priority" 2>/dev/null
+			fi
+		fi
+	elif [ "$MERGEN_ENGINE_ACTIVE" = "ipset" ]; then
+		# Create ipset
+		if mergen_set_create "$rule_name"; then
+			mergen_set_mark_rule "$rule_name" "$table_num"
+			ip rule add fwmark "$table_num" lookup "$table_num" priority "$priority" 2>/dev/null
+		fi
+	else
+		mergen_log "error" "DNS" "[!] Hata: Domain kuralları için nftables veya ipset gerekli."
+		return 1
+	fi
+
+	# Build dnsmasq config
+	local conf_file="${MERGEN_DNSMASQ_DIR}/${MERGEN_DNSMASQ_CONF_PREFIX}${rule_name}.conf"
+	mkdir -p "$MERGEN_DNSMASQ_DIR"
+
+	# Generate dnsmasq entries for each domain
+	local domain_item
+	local nft_table="${MERGEN_NFT_TABLE:-mergen}"
+	local dnsmasq_lines=""
+
+	local IFS_SAVE="$IFS"
+	IFS=' '
+	for domain_item in $domains; do
+		[ -z "$domain_item" ] && continue
+
+		# Strip wildcard prefix — dnsmasq treats bare domain as wildcard
+		case "$domain_item" in
+			\*.) continue ;;
+			\*.*) domain_item="${domain_item#\*.}" ;;
+		esac
+
+		if [ "$MERGEN_ENGINE_ACTIVE" = "nftables" ]; then
+			# nftset directive: nftset=/<domain>/4#inet#<table>#<set>[,6#inet#<table>#<set_v6>]
+			local nft_entry="nftset=/${domain_item}/4#inet#${nft_table}#${set_name}"
+			if [ "$ipv6_enabled" = "1" ]; then
+				nft_entry="${nft_entry},6#inet#${nft_table}#${set_name}_v6"
+			fi
+			dnsmasq_lines="${dnsmasq_lines}${nft_entry}
+"
+		elif [ "$MERGEN_ENGINE_ACTIVE" = "ipset" ]; then
+			# ipset directive: ipset=/<domain>/<set_name>
+			dnsmasq_lines="${dnsmasq_lines}ipset=/${domain_item}/${set_name}
+"
+		fi
+	done
+	IFS="$IFS_SAVE"
+
+	if [ -z "$dnsmasq_lines" ]; then
+		mergen_log "warning" "DNS" "Domain kuralı '${rule_name}' için dnsmasq girişi oluşturulamadı."
+		return 1
+	fi
+
+	# Write dnsmasq config file
+	cat > "$conf_file" <<DNSMASQEOF
+# Mergen DNS-based routing: ${rule_name}
+# Auto-generated — do not edit manually
+${dnsmasq_lines}DNSMASQEOF
+
+	mergen_log "info" "DNS" "dnsmasq yapılandırması yazıldı: ${conf_file}"
+
+	# Restart dnsmasq to pick up the new config
+	_mergen_dnsmasq_restart
+
+	mergen_log "info" "DNS" "Domain kuralı '${rule_name}' uygulandı (${MERGEN_ENGINE_ACTIVE})"
+	return 0
+}
+
+# Remove dnsmasq configuration for a domain rule
+# Usage: mergen_dnsmasq_remove <rule_name>
+mergen_dnsmasq_remove() {
+	local rule_name="$1"
+	local conf_file="${MERGEN_DNSMASQ_DIR}/${MERGEN_DNSMASQ_CONF_PREFIX}${rule_name}.conf"
+
+	if [ -f "$conf_file" ]; then
+		rm -f "$conf_file"
+		mergen_log "info" "DNS" "dnsmasq yapılandırması silindi: ${conf_file}"
+		_mergen_dnsmasq_restart
+	fi
+}
+
+# Restart dnsmasq service (idempotent)
+_mergen_dnsmasq_restart() {
+	if [ -x /etc/init.d/dnsmasq ]; then
+		/etc/init.d/dnsmasq restart >/dev/null 2>&1
+		mergen_log "debug" "DNS" "dnsmasq yeniden başlatıldı."
+	else
+		mergen_log "warning" "DNS" "dnsmasq servisi bulunamadı."
+	fi
 }

@@ -10,7 +10,7 @@ Secondary objectives: DNS-based routing, country-based routing, traffic statisti
 
 ### T042 - DNS-Based Routing
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 3 days
 

@@ -44,9 +44,9 @@ mergen_rule_add() {
 
 	# Validate type
 	case "$type" in
-		asn|ip) ;;
+		asn|ip|domain) ;;
 		*)
-			mergen_log "error" "Engine" "[!] Hata: Geçersiz kural tipi: '$type'. Geçerli: asn, ip"
+			mergen_log "error" "Engine" "[!] Hata: Geçersiz kural tipi: '$type'. Geçerli: asn, ip, domain"
 			return 1
 			;;
 	esac
@@ -73,6 +73,11 @@ mergen_rule_add() {
 			fi
 		elif [ "$type" = "ip" ]; then
 			if ! validate_ip_cidr "$target_item"; then
+				mergen_log "error" "Engine" "$MERGEN_VALIDATE_ERR"
+				return 1
+			fi
+		elif [ "$type" = "domain" ]; then
+			if ! validate_domain "$target_item"; then
 				mergen_log "error" "Engine" "$MERGEN_VALIDATE_ERR"
 				return 1
 			fi
@@ -241,10 +246,11 @@ mergen_rule_get() {
 	config_get MERGEN_RULE_ENABLED "$section_id" "enabled" "1"
 
 	# Determine type and targets
-	# Try option asn first, then list asn, then option ip, then list ip
-	local asn_val ip_val
+	# Try option asn first, then list asn, then option ip, then list ip, then domain
+	local asn_val ip_val domain_val
 	config_get asn_val "$section_id" "asn" ""
 	config_get ip_val "$section_id" "ip" ""
+	config_get domain_val "$section_id" "domain" ""
 
 	if [ -n "$asn_val" ]; then
 		MERGEN_RULE_TYPE="asn"
@@ -252,6 +258,9 @@ mergen_rule_get() {
 	elif [ -n "$ip_val" ]; then
 		MERGEN_RULE_TYPE="ip"
 		MERGEN_RULE_TARGETS="$ip_val"
+	elif [ -n "$domain_val" ]; then
+		MERGEN_RULE_TYPE="domain"
+		MERGEN_RULE_TARGETS="$domain_val"
 	else
 		MERGEN_RULE_TYPE="unknown"
 		MERGEN_RULE_TARGETS=""
@@ -278,7 +287,7 @@ mergen_rule_list() {
 
 	_rule_list_cb() {
 		local section="$1"
-		local name via priority enabled asn_val ip_val
+		local name via priority enabled asn_val ip_val domain_val
 		local type target status
 
 		config_get name "$section" "name" ""
@@ -287,6 +296,7 @@ mergen_rule_list() {
 		config_get enabled "$section" "enabled" "1"
 		config_get asn_val "$section" "asn" ""
 		config_get ip_val "$section" "ip" ""
+		config_get domain_val "$section" "domain" ""
 
 		# Determine type and target display
 		if [ -n "$asn_val" ]; then
@@ -321,6 +331,23 @@ mergen_rule_list() {
 				target="${first_ip} (+$((ip_count - 1)))"
 			else
 				target="$first_ip"
+			fi
+		elif [ -n "$domain_val" ]; then
+			type="DNS"
+			# Format: first domain or count
+			local first_dom dom_count=0
+			local item
+			local IFS_OLD="$IFS"
+			IFS=' '
+			for item in $domain_val; do
+				dom_count=$((dom_count + 1))
+				[ "$dom_count" -eq 1 ] && first_dom="$item"
+			done
+			IFS="$IFS_OLD"
+			if [ "$dom_count" -gt 1 ]; then
+				target="${first_dom} (+$((dom_count - 1)))"
+			else
+				target="$first_dom"
 			fi
 		else
 			type="?"

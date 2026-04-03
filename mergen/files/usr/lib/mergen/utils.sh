@@ -422,3 +422,63 @@ validate_priority() {
 
 	return 0
 }
+
+# ── Domain Validation ───────────────────────────────────
+
+# Validate domain name: standard hostname format + optional wildcard prefix
+# Accepts: example.com, sub.example.com, *.example.com
+# Rejects: empty, spaces, invalid chars, bare TLD
+# Returns 0 if valid, 1 if invalid
+# Sets MERGEN_VALIDATE_ERR on failure
+validate_domain() {
+	local value="$1"
+	MERGEN_VALIDATE_ERR=""
+
+	if [ -z "$value" ]; then
+		MERGEN_VALIDATE_ERR="[!] Hata: Domain adı boş olamaz."
+		return 1
+	fi
+
+	if ! mergen_sanitize_input "$value"; then
+		MERGEN_VALIDATE_ERR="[!] Hata: '$value' geçersiz karakter içeriyor."
+		return 1
+	fi
+
+	# Strip leading wildcard prefix for validation
+	local check_val="$value"
+	case "$value" in
+		\*.)
+			MERGEN_VALIDATE_ERR="[!] Hata: Wildcard sonrası domain adı gerekli."
+			return 1
+			;;
+		\*.*)
+			check_val="${value#\*.}"
+			;;
+	esac
+
+	# Only allow: letters, digits, hyphens, dots
+	case "$check_val" in
+		*[!a-zA-Z0-9.-]*)
+			MERGEN_VALIDATE_ERR="[!] Hata: Domain adı sadece harf, rakam, tire (-) ve nokta (.) içerebilir."
+			return 1
+			;;
+	esac
+
+	# Must contain at least one dot (no bare TLD)
+	case "$check_val" in
+		*.*)
+			;;
+		*)
+			MERGEN_VALIDATE_ERR="[!] Hata: Geçersiz domain formatı (en az bir nokta gerekli)."
+			return 1
+			;;
+	esac
+
+	# Max length check
+	if [ "${#value}" -gt 253 ]; then
+		MERGEN_VALIDATE_ERR="[!] Hata: Domain adı en fazla 253 karakter olabilir."
+		return 1
+	fi
+
+	return 0
+}
