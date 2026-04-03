@@ -86,6 +86,21 @@ function index()
 
 	entry({"admin", "services", "mergen", "rpc", "diag_bundle"},
 		call("rpc_diag_bundle")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "version"},
+		call("rpc_version")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "factory_reset"},
+		post("rpc_factory_reset")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "restore_config"},
+		post("rpc_restore_config")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "clear_cache"},
+		post("rpc_clear_cache")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "test_provider"},
+		post("rpc_test_provider")).leaf = true
 end
 
 -- Helper: execute mergen CLI command and return output
@@ -692,5 +707,174 @@ function rpc_diag_bundle()
 	json_response({
 		success = true,
 		bundle = table.concat(parts, "\n")
+	})
+end
+
+-- RPC: Get version information
+function rpc_version()
+	local util = require "luci.util"
+	local uci = require "luci.model.uci".cursor()
+
+	local mergen_version = util.exec("/usr/bin/mergen version 2>/dev/null"):gsub("%s+$", "")
+	if mergen_version == "" then mergen_version = "unknown" end
+
+	local config_version = uci:get("mergen", "global", "config_version") or "1"
+	local luci_version = "1.0.0"
+
+	-- Read package version from opkg if available
+	local pkg_version = util.exec(
+		"opkg info luci-app-mergen 2>/dev/null | grep '^Version:'"
+	):match("Version:%s*(.-)%s*$") or luci_version
+
+	json_response({
+		success = true,
+		mergen_version = mergen_version,
+		config_version = config_version,
+		luci_version = pkg_version
+	})
+end
+
+-- RPC: Factory reset (restore default UCI config)
+function rpc_factory_reset()
+	local uci = require "luci.model.uci".cursor()
+	local util = require "luci.util"
+
+	-- Delete all rule sections
+	local rules = {}
+	uci:foreach("mergen", "rule", function(s)
+		rules[#rules + 1] = s[".name"]
+	end)
+	for _, name in ipairs(rules) do
+		uci:delete("mergen", name)
+	end
+
+	-- Delete all provider sections
+	local providers = {}
+	uci:foreach("mergen", "provider", function(s)
+		providers[#providers + 1] = s[".name"]
+	end)
+	for _, name in ipairs(providers) do
+		uci:delete("mergen", name)
+	end
+
+	-- Reset global section to defaults
+	uci:set("mergen", "global", "enabled", "1")
+	uci:set("mergen", "global", "default_table", "100")
+	uci:set("mergen", "global", "rule_priority_start", "100")
+	uci:set("mergen", "global", "set_type", "nftables")
+	uci:set("mergen", "global", "ipv6_enabled", "0")
+	uci:set("mergen", "global", "prefix_limit", "10000")
+	uci:set("mergen", "global", "total_prefix_limit", "50000")
+	uci:set("mergen", "global", "update_interval", "86400")
+	uci:set("mergen", "global", "api_timeout", "30")
+	uci:set("mergen", "global", "parallel_queries", "2")
+	uci:set("mergen", "global", "watchdog_timeout", "60")
+	uci:set("mergen", "global", "ping_target", "8.8.8.8")
+	uci:set("mergen", "global", "log_level", "info")
+	uci:set("mergen", "global", "fallback_strategy", "sequential")
+	uci:set("mergen", "global", "config_version", "1")
+	uci:commit("mergen")
+
+	-- Flush routes after reset
+	mergen_exec("flush --confirm")
+
+	json_response({
+		success = true,
+		output = "Factory reset completed. All rules and providers removed."
+	})
+end
+
+-- RPC: Restore configuration from uploaded content
+function rpc_restore_config()
+	local http = require "luci.http"
+	local nixio = require "nixio"
+	local fs = require "nixio.fs"
+
+	local config_data = http.formvalue("config_data") or ""
+
+	if config_data == "" then
+		json_response({ success = false, error = "No configuration data provided" })
+		return
+	end
+
+	-- Validate it looks like a UCI config (basic sanity check)
+	if not config_data:match("config%s+global") then
+		json_response({
+			success = false,
+			error = "Invalid configuration format (missing global section)"
+		})
+		return
+	end
+
+	-- Write to /etc/config/mergen
+	local ok = fs.writefile("/etc/config/mergen", config_data)
+	if not ok then
+		json_response({ success = false, error = "Failed to write configuration file" })
+		return
+	end
+
+	json_response({
+		success = true,
+		output = "Configuration restored successfully. Reload the page to see changes."
+	})
+end
+
+-- RPC: Clear all provider cache
+function rpc_clear_cache()
+	local util = require "luci.util"
+	local fs = require "nixio.fs"
+
+	-- Remove cache directory contents
+	local cache_dir = "/tmp/mergen/cache"
+	if fs.stat(cache_dir) then
+		util.exec("rm -rf " .. cache_dir .. "/* 2>/dev/null")
+	end
+
+	-- Also try CLI cache clear if available
+	mergen_exec("cache clear 2>/dev/null")
+
+	json_response({
+		success = true,
+		output = "All provider caches cleared"
+	})
+end
+
+-- RPC: Test a specific provider or all providers
+function rpc_test_provider()
+	local http = require "luci.http"
+	local uci = require "luci.model.uci".cursor()
+
+	local provider_name = http.formvalue("provider") or ""
+
+	if provider_name == "" then
+		-- Test all providers
+		local output = mergen_exec("validate --check-providers")
+		json_response({
+			success = true,
+			output = output,
+			mode = "all"
+		})
+		return
+	end
+
+	-- Sanitize provider name
+	if not provider_name:match("^[a-zA-Z0-9_-]+$") then
+		json_response({ success = false, error = "Invalid provider name" })
+		return
+	end
+
+	-- Test specific provider: resolve a known ASN through it
+	local output = mergen_exec(
+		"resolve 13335 --provider " .. provider_name)
+
+	local success = output:match("Prefix") ~= nil
+		or output:match("prefix") ~= nil
+
+	json_response({
+		success = true,
+		provider = provider_name,
+		test_passed = success,
+		output = output,
+		mode = "single"
 	})
 end

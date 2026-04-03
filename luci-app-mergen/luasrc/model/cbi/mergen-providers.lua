@@ -88,4 +88,13 @@ ci.default = "86400"
 ci.datatype = "uinteger"
 ci.placeholder = "86400"
 
+-- ══════════════════════════════════════════════════════════
+-- Provider Maintenance Actions (SimpleSection for buttons)
+-- ══════════════════════════════════════════════════════════
+
+pm = m:section(SimpleSection, nil,
+	translate("Provider testing, cache management and health monitoring."))
+
+pm.template = "mergen/providers"
+
 return m

@@ -14,9 +14,40 @@
 	<button class="cbi-button cbi-button-neutral" id="mergen-validate-btn">
 		<%:Validate Config%>
 	</button>
+
+	<button class="cbi-button cbi-button-reset" id="mergen-factory-reset-btn">
+		<%:Factory Reset%>
+	</button>
 </div>
 
 <div id="mergen-maintenance-output" class="mergen-log" style="display:none; margin-top:1rem"></div>
+
+<h3><%:Restore Configuration%></h3>
+<div class="mergen-restore-section">
+	<p class="mergen-restore-hint"><%:Upload a previously backed up Mergen UCI configuration file to restore settings.%></p>
+	<div class="mergen-restore-form">
+		<input type="file" id="mergen-restore-file" accept=".conf,.txt,text/plain">
+		<button class="cbi-button cbi-button-action" id="mergen-restore-btn" disabled>
+			<%:Restore Config%>
+		</button>
+	</div>
+</div>
+
+<h3><%:Version Information%></h3>
+<div id="mergen-version-info" class="mergen-version-grid">
+	<div class="mergen-version-item">
+		<span class="mergen-version-label">Mergen CLI</span>
+		<span class="mergen-version-value" id="mergen-ver-cli"><%:Loading...%></span>
+	</div>
+	<div class="mergen-version-item">
+		<span class="mergen-version-label">LuCI App</span>
+		<span class="mergen-version-value" id="mergen-ver-luci"><%:Loading...%></span>
+	</div>
+	<div class="mergen-version-item">
+		<span class="mergen-version-label"><%:Config Version%></span>
+		<span class="mergen-version-value" id="mergen-ver-config"><%:Loading...%></span>
+	</div>
+</div>
 
 <script src="<%=resource%>/mergen/mergen.js"></script>
 
@@ -29,6 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
 		outputEl.style.display = 'block';
 	}
 
+	/* ── Flush All Routes ── */
 	document.getElementById('mergen-flush-btn').addEventListener('click', function(e) {
 		e.preventDefault();
 		if (!confirm('<%:This will remove all Mergen routes and sets. Continue?%>')) return;
@@ -39,12 +71,13 @@ document.addEventListener('DOMContentLoaded', function() {
 		});
 	});
 
+	/* ── Backup Config ── */
 	document.getElementById('mergen-backup-btn').addEventListener('click', function(e) {
 		e.preventDefault();
-		/* Trigger UCI config download */
 		window.location.href = '/cgi-bin/luci/admin/system/flashops/backupfiles?backup=/etc/config/mergen';
 	});
 
+	/* ── Validate Config ── */
 	document.getElementById('mergen-validate-btn').addEventListener('click', function(e) {
 		e.preventDefault();
 		this.disabled = true;
@@ -56,6 +89,83 @@ document.addEventListener('DOMContentLoaded', function() {
 			btn.disabled = false;
 			showOutput('Error: ' + err.message);
 		});
+	});
+
+	/* ── Factory Reset ── */
+	document.getElementById('mergen-factory-reset-btn').addEventListener('click', function(e) {
+		e.preventDefault();
+		if (!confirm('<%:This will delete ALL rules, providers and reset all settings to defaults. This cannot be undone. Continue?%>')) return;
+		if (!confirm('<%:Are you absolutely sure? All configuration will be lost.%>')) return;
+		var btn = this;
+		btn.disabled = true;
+		MergenUI.rpcCall('factory_reset', {}).then(function(data) {
+			btn.disabled = false;
+			if (data.success) {
+				showOutput(data.output || 'Factory reset completed');
+				setTimeout(function() { location.reload(); }, 2000);
+			} else {
+				showOutput('Error: ' + (data.error || 'Unknown error'));
+			}
+		}).catch(function(err) {
+			btn.disabled = false;
+			showOutput('Error: ' + err.message);
+		});
+	});
+
+	/* ── Restore Config ── */
+	var fileInput = document.getElementById('mergen-restore-file');
+	var restoreBtn = document.getElementById('mergen-restore-btn');
+
+	fileInput.addEventListener('change', function() {
+		restoreBtn.disabled = !this.files || this.files.length === 0;
+	});
+
+	restoreBtn.addEventListener('click', function(e) {
+		e.preventDefault();
+		var file = fileInput.files[0];
+		if (!file) return;
+
+		var reader = new FileReader();
+		reader.onload = function(ev) {
+			var content = ev.target.result;
+			if (!content || content.indexOf('config') === -1) {
+				showOutput('<%:Invalid configuration file format%>');
+				return;
+			}
+			if (!confirm('<%:This will replace the current configuration. Continue?%>')) return;
+			restoreBtn.disabled = true;
+			MergenUI.rpcCall('restore_config', {
+				config_data: content
+			}).then(function(data) {
+				restoreBtn.disabled = false;
+				if (data.success) {
+					showOutput(data.output || 'Restore completed');
+					setTimeout(function() { location.reload(); }, 2000);
+				} else {
+					showOutput('Error: ' + (data.error || 'Unknown error'));
+				}
+			}).catch(function(err) {
+				restoreBtn.disabled = false;
+				showOutput('Error: ' + err.message);
+			});
+		};
+		reader.readAsText(file);
+	});
+
+	/* ── Version Information ── */
+	MergenUI.rpcCall('version').then(function(data) {
+		if (data.success) {
+			document.getElementById('mergen-ver-cli').textContent =
+				data.mergen_version || 'N/A';
+			document.getElementById('mergen-ver-luci').textContent =
+				data.luci_version || 'N/A';
+			document.getElementById('mergen-ver-config').textContent =
+				'v' + (data.config_version || '1');
+		}
+	}).catch(function() {
+		document.getElementById('mergen-ver-cli').textContent = 'N/A';
+		document.getElementById('mergen-ver-luci').textContent = 'N/A';
+		document.getElementById('mergen-ver-config').textContent = 'N/A';
 	});
 });
 </script>

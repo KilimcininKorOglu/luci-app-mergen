@@ -422,4 +422,61 @@ msgid "Download failed"
 msgstr "Indirme basarisiz"
 
 msgid "Diagnostics generation failed"
-msgstr "Tani paketi olusturulamadi"
+msgstr "Tanı paketi oluşturulamadı"
+
+msgid "Factory Reset"
+msgstr "Fabrika Ayarlarına Sıfırla"
+
+msgid "This will delete ALL rules, providers and reset all settings to defaults. This cannot be undone. Continue?"
+msgstr "Bu işlem TÜM kuralları, sağlayıcıları silecek ve tüm ayarları varsayılana sıfırlayacak. Bu geri alınamaz. Devam edilsin mi?"
+
+msgid "Are you absolutely sure? All configuration will be lost."
+msgstr "Kesinlikle emin misiniz? Tüm yapılandırma kaybedilecek."
+
+msgid "Restore Configuration"
+msgstr "Yapılandırmayı Geri Yükle"
+
+msgid "Upload a previously backed up Mergen UCI configuration file to restore settings."
+msgstr "Ayarları geri yüklemek için daha önce yedeklenmiş Mergen UCI yapılandırma dosyasını yükleyin."
+
+msgid "Restore Config"
+msgstr "Yapılandırmayı Geri Yükle"
+
+msgid "Invalid configuration file format"
+msgstr "Geçersiz yapılandırma dosyası biçimi"
+
+msgid "This will replace the current configuration. Continue?"
+msgstr "Bu mevcut yapılandırmayı değiştirecek. Devam edilsin mi?"
+
+msgid "Version Information"
+msgstr "Sürüm Bilgisi"
+
+msgid "Config Version"
+msgstr "Yapılandırma Sürümü"
+
+msgid "Provider Maintenance"
+msgstr "Sağlayıcı Bakımı"
+
+msgid "Test All Providers"
+msgstr "Tüm Sağlayıcıları Test Et"
+
+msgid "Clear All Cache"
+msgstr "Tüm Önbelleği Temizle"
+
+msgid "Test Results"
+msgstr "Test Sonuçları"
+
+msgid "Testing..."
+msgstr "Test ediliyor..."
+
+msgid "This will clear all provider caches. Prefixes will be re-fetched on next update. Continue?"
+msgstr "Bu tüm sağlayıcı önbelleklerini temizleyecek. Prefixler bir sonraki güncellemede yeniden çekilecek. Devam edilsin mi?"
+
+msgid "Test"
+msgstr "Test"
+
+msgid "Provider testing, cache management and health monitoring."
+msgstr "Sağlayıcı testi, önbellek yönetimi ve sağlık izleme."
+
+msgid "Configure ASN resolution data providers, fallback strategy and cache settings."
+msgstr "ASN çözümleme veri sağlayıcılarını, yedek stratejiyi ve önbellek ayarlarını yapılandırın."

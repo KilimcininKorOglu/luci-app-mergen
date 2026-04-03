@@ -1,6 +1,6 @@
 # Mergen - Task Status Tracker
 
-**Last Updated**: 2026-04-03
+**Last Updated**: 2026-04-04
 **PRD Version**: 1.3
 **Total Features**: 14
 **Total Tasks**: 49
@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 8     | 16%        |
+| NOT_STARTED | 7     | 14%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 41    | 84%        |
+| COMPLETED   | 42    | 86%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -30,7 +30,7 @@
 | F009    | IPv6 & Advanced Rule Engine     | Phase 3 | 3     | COMPLETED   |
 | F010    | Import/Export & Automation      | Phase 3 | 4     | COMPLETED   |
 | F011    | LuCI Core Pages                 | Phase 4 | 4     | COMPLETED   |
-| F012    | LuCI Advanced Pages             | Phase 5 | 4     | NOT_STARTED |
+| F012    | LuCI Advanced Pages             | Phase 5 | 4     | COMPLETED   |
 | F013    | Advanced Features               | Phase 6 | 4     | NOT_STARTED |
 | F014    | Distribution & QA               | Phase 6 | 3     | NOT_STARTED |
 
@@ -101,7 +101,7 @@
 | T038 | F012    | Rules Page Advanced               | P3       | 2d     | COMPLETED   | T036         |
 | T039 | F012    | ASN Browser Page                  | P3       | 3d     | COMPLETED   | T034, T005   |
 | T040 | F012    | Interfaces & Logs Pages           | P3       | 3d     | COMPLETED   | T034         |
-| T041 | F012    | Advanced & Provider Settings Full | P3       | 2d     | NOT_STARTED | T037         |
+| T041 | F012    | Advanced & Provider Settings Full | P3       | 2d     | COMPLETED   | T037         |
 
 ### Phase 6: Advanced Features & Distribution (6 tasks)
 

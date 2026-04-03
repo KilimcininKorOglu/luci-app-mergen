@@ -118,7 +118,7 @@ Interface status / health check page and live log viewer / filtering page.
 
 ### T041 - Advanced Settings Full & Provider Advanced
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 2 days
 

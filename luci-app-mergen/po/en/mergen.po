@@ -423,3 +423,60 @@ msgstr "Download failed"
 
 msgid "Diagnostics generation failed"
 msgstr "Diagnostics generation failed"
+
+msgid "Factory Reset"
+msgstr "Factory Reset"
+
+msgid "This will delete ALL rules, providers and reset all settings to defaults. This cannot be undone. Continue?"
+msgstr "This will delete ALL rules, providers and reset all settings to defaults. This cannot be undone. Continue?"
+
+msgid "Are you absolutely sure? All configuration will be lost."
+msgstr "Are you absolutely sure? All configuration will be lost."
+
+msgid "Restore Configuration"
+msgstr "Restore Configuration"
+
+msgid "Upload a previously backed up Mergen UCI configuration file to restore settings."
+msgstr "Upload a previously backed up Mergen UCI configuration file to restore settings."
+
+msgid "Restore Config"
+msgstr "Restore Config"
+
+msgid "Invalid configuration file format"
+msgstr "Invalid configuration file format"
+
+msgid "This will replace the current configuration. Continue?"
+msgstr "This will replace the current configuration. Continue?"
+
+msgid "Version Information"
+msgstr "Version Information"
+
+msgid "Config Version"
+msgstr "Config Version"
+
+msgid "Provider Maintenance"
+msgstr "Provider Maintenance"
+
+msgid "Test All Providers"
+msgstr "Test All Providers"
+
+msgid "Clear All Cache"
+msgstr "Clear All Cache"
+
+msgid "Test Results"
+msgstr "Test Results"
+
+msgid "Testing..."
+msgstr "Testing..."
+
+msgid "This will clear all provider caches. Prefixes will be re-fetched on next update. Continue?"
+msgstr "This will clear all provider caches. Prefixes will be re-fetched on next update. Continue?"
+
+msgid "Test"
+msgstr "Test"
+
+msgid "Provider testing, cache management and health monitoring."
+msgstr "Provider testing, cache management and health monitoring."
+
+msgid "Configure ASN resolution data providers, fallback strategy and cache settings."
+msgstr "Configure ASN resolution data providers, fallback strategy and cache settings."
