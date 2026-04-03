@@ -655,6 +655,193 @@ test_full_lifecycle() {
 	assertNotEquals "Rule no longer in list" 0 $?
 }
 
+# ── cmd_flush Tests ────────────────────────────────────
+
+test_flush_requires_confirm() {
+	cmd_flush 2>/dev/null
+	assertEquals "Flush without --confirm returns 1" 1 $?
+}
+
+test_flush_with_confirm() {
+	cmd_add --name flush-test --ip 10.0.0.0/8 --via wg0 2>/dev/null
+	local output
+	output="$(cmd_flush --confirm 2>/dev/null)"
+	assertEquals "Flush with --confirm succeeds" 0 $?
+	echo "$output" | grep -q "temizlendi"
+	assertEquals "Flush output confirms cleanup" 0 $?
+}
+
+test_flush_unknown_option() {
+	cmd_flush --bogus 2>/dev/null
+	assertEquals "Flush unknown option returns 2" 2 $?
+}
+
+test_flush_warning_without_confirm() {
+	local stderr_output
+	stderr_output="$(cmd_flush 2>&1 >/dev/null)"
+	echo "$stderr_output" | grep -q "\-\-confirm"
+	assertEquals "Flush shows --confirm hint" 0 $?
+}
+
+# ── cmd_diag Tests ─────────────────────────────────────
+
+test_diag_shows_version() {
+	local output
+	output="$(cmd_diag 2>/dev/null)"
+	echo "$output" | grep -q "Mergen v"
+	assertEquals "Diag shows version" 0 $?
+}
+
+test_diag_shows_engine() {
+	local output
+	output="$(cmd_diag 2>/dev/null)"
+	echo "$output" | grep -q "Paket Motoru"
+	assertEquals "Diag shows engine section" 0 $?
+}
+
+test_diag_shows_ip_rules() {
+	local output
+	output="$(cmd_diag 2>/dev/null)"
+	echo "$output" | grep -q "IP Kurallari"
+	assertEquals "Diag shows IP rules section" 0 $?
+}
+
+test_diag_shows_routing_tables() {
+	local output
+	output="$(cmd_diag 2>/dev/null)"
+	echo "$output" | grep -q "Routing Tablolari"
+	assertEquals "Diag shows routing tables section" 0 $?
+}
+
+test_diag_shows_interfaces() {
+	local output
+	output="$(cmd_diag 2>/dev/null)"
+	echo "$output" | grep -q "Arayuzler"
+	assertEquals "Diag shows interfaces section" 0 $?
+}
+
+test_diag_unknown_option() {
+	cmd_diag --bogus 2>/dev/null
+	assertEquals "Diag unknown option returns 2" 2 $?
+}
+
+test_diag_asn_missing_value() {
+	cmd_diag --asn 2>/dev/null
+	assertEquals "Diag --asn without value returns 2" 2 $?
+}
+
+# ── cmd_log Tests ──────────────────────────────────────
+
+test_log_no_entries() {
+	local output
+	output="$(cmd_log 2>/dev/null)"
+	echo "$output" | grep -q "bulunamadi"
+	assertEquals "Log shows no entries message" 0 $?
+}
+
+test_log_with_tail() {
+	# Should not error even without entries
+	cmd_log --tail 10 2>/dev/null
+	assertEquals "Log --tail succeeds" 0 $?
+}
+
+test_log_with_level() {
+	cmd_log --level error 2>/dev/null
+	assertEquals "Log --level succeeds" 0 $?
+}
+
+test_log_with_component() {
+	cmd_log --component Route 2>/dev/null
+	assertEquals "Log --component succeeds" 0 $?
+}
+
+test_log_combined_options() {
+	cmd_log --tail 20 --level error --component CLI 2>/dev/null
+	assertEquals "Log combined options succeeds" 0 $?
+}
+
+test_log_unknown_option() {
+	cmd_log --bogus 2>/dev/null
+	assertEquals "Log unknown option returns 2" 2 $?
+}
+
+test_log_missing_tail_value() {
+	cmd_log --tail 2>/dev/null
+	assertEquals "Log --tail without value returns 2" 2 $?
+}
+
+test_log_missing_level_value() {
+	cmd_log --level 2>/dev/null
+	assertEquals "Log --level without value returns 2" 2 $?
+}
+
+# ── cmd_show Extended Tests ────────────────────────────
+
+test_show_asn_prefix_info() {
+	cmd_add --name cache-show --asn 13335 --via wg0 2>/dev/null
+
+	# Create mock cache
+	mkdir -p "${_TEST_TMPDIR}/cache"
+	printf "192.0.2.0/24\n198.51.100.0/24\n" > "${_TEST_TMPDIR}/cache/AS13335.v4.txt"
+	printf "timestamp=1234567890\nprovider=ripe\n" > "${_TEST_TMPDIR}/cache/AS13335.meta"
+
+	local output
+	output="$(cmd_show cache-show 2>/dev/null)"
+	echo "$output" | grep -q "Provider:"
+	assertEquals "Show displays provider" 0 $?
+	echo "$output" | grep -q "ripe"
+	assertEquals "Show displays provider name" 0 $?
+	echo "$output" | grep -q "Prefix:"
+	assertEquals "Show displays prefix count" 0 $?
+	echo "$output" | grep -q "2 adet"
+	assertEquals "Show displays correct prefix count" 0 $?
+}
+
+test_show_asn_no_cache() {
+	cmd_add --name nocache --asn 99999 --via wg0 2>/dev/null
+
+	local output
+	output="$(cmd_show nocache 2>/dev/null)"
+	echo "$output" | grep -q "onbellekte yok"
+	assertEquals "Show displays no cache message" 0 $?
+}
+
+test_show_ip_no_prefix_section() {
+	cmd_add --name ip-show --ip 10.0.0.0/8 --via wg0 2>/dev/null
+
+	local output
+	output="$(cmd_show ip-show 2>/dev/null)"
+	echo "$output" | grep -q "Prefix:"
+	assertNotEquals "IP show does not have Prefix section" 0 $?
+}
+
+# ── Help Tests for New Commands ────────────────────────
+
+test_help_flush() {
+	local output
+	output="$(cmd_help flush 2>/dev/null)"
+	echo "$output" | grep -q "\-\-confirm"
+	assertEquals "Help flush shows --confirm" 0 $?
+}
+
+test_help_diag() {
+	local output
+	output="$(cmd_help diag 2>/dev/null)"
+	echo "$output" | grep -q "\-\-asn"
+	assertEquals "Help diag shows --asn" 0 $?
+}
+
+test_help_log() {
+	local output
+	output="$(cmd_help log 2>/dev/null)"
+	echo "$output" | grep -q "\-\-tail"
+	assertEquals "Help log shows --tail" 0 $?
+	echo "$output" | grep -q "\-\-level"
+	assertEquals "Help log shows --level" 0 $?
+	echo "$output" | grep -q "\-\-component"
+	assertEquals "Help log shows --component" 0 $?
+}
+
 # ── Load shunit2 ────────────────────────────────────────
 
 if [ -f "${MERGEN_TEST_DIR}/shunit2" ]; then

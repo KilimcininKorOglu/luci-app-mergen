@@ -33,9 +33,12 @@ Komutlar:
   enable     Kurali etkinlestir
   disable    Kurali devre disi birak
   apply      Kurallari sisteme uygula
+  flush      Tum Mergen rotalarini ve setlerini temizle
   rollback   Son uygulama oncesine geri don
   confirm    Guvenli mod degisikliklerini onayla
   status     Servis ve kural durumunu goster
+  diag       Tani bilgisi goster
+  log        Mergen loglarini filtrele ve goster
   validate   Yapilandirmayi dogrula (uygulamadan)
   version    Surum bilgisi goster
   help       Bu yardimi veya komut yardimini goster
@@ -135,6 +138,17 @@ Secenekler:
   --safe     Guvenli mod (baglanti kontrolu ile otomatik geri alma)
 HELP
 			;;
+		flush)
+			cat <<'HELP'
+Kullanim: mergen flush [--confirm]
+
+Tum Mergen rotalarini, ip kurallarini ve nft/ipset setlerini temizler.
+Kalici degisiklik yapar — kullanim oncesi dikkatli olun.
+
+Secenekler:
+  --confirm    Onay sorusu olmadan dogrudan temizle
+HELP
+			;;
 		rollback)
 			cat <<'HELP'
 Kullanim: mergen rollback
@@ -157,6 +171,33 @@ HELP
 Kullanim: mergen status
 
 Mergen servis durumunu, kural sayilarini ve onbellek istatistiklerini gosterir.
+HELP
+			;;
+		diag)
+			cat <<'HELP'
+Kullanim: mergen diag [--asn <ASN>]
+
+Sistem tani bilgilerini gosterir: routing tablolari, nft/ipset setleri,
+arayuz durumlari ve paket motoru bilgisi.
+
+Secenekler:
+  --asn <ASN>    Belirtilen ASN icin prefix cozumleme testi yap
+HELP
+			;;
+		log)
+			cat <<'HELP'
+Kullanim: mergen log [--tail N] [--level LEVEL] [--component COMP]
+
+Mergen syslog kayitlarini filtreler ve gosterir.
+
+Secenekler:
+  --tail <N>           Son N satiri goster
+  --level <LEVEL>      Seviyeye gore filtrele (debug, info, warning, error)
+  --component <COMP>   Bilesene gore filtrele (Core, Engine, Route, vb.)
+
+Ornekler:
+  mergen log --tail 20 --level error
+  mergen log --component Route --tail 50
 HELP
 			;;
 		validate)
@@ -333,6 +374,34 @@ cmd_show() {
 
 	# Show routing status if available (return code ignored — optional info)
 	mergen_route_status "$name" 2>/dev/null
+
+	# Show cached prefix list for ASN rules
+	if [ "$MERGEN_RULE_TYPE" = "asn" ]; then
+		mergen_resolver_init
+		local asn_item prefix_count=0
+		for asn_item in $(echo "$MERGEN_RULE_TARGETS" | tr ',' ' '); do
+			local cache_v4="${MERGEN_CACHE_DIR}/AS${asn_item}.v4.txt"
+			local cache_meta="${MERGEN_CACHE_DIR}/AS${asn_item}.meta"
+			if [ -f "$cache_v4" ]; then
+				local count
+				count="$(wc -l < "$cache_v4" | tr -d ' ')"
+				prefix_count=$((prefix_count + count))
+
+				# Read provider from meta
+				local prov=""
+				if [ -f "$cache_meta" ]; then
+					prov="$(grep '^provider=' "$cache_meta" 2>/dev/null | cut -d= -f2)"
+				fi
+				[ -n "$prov" ] && printf "Provider: %s (AS%s)\n" "$prov" "$asn_item"
+			fi
+		done
+		if [ "$prefix_count" -gt 0 ]; then
+			printf "Prefix:   %s adet (onbellekte)\n" "$prefix_count"
+		else
+			printf "Prefix:   onbellekte yok (once 'mergen apply' calistirin)\n"
+		fi
+	fi
+
 	return 0
 }
 
@@ -459,6 +528,203 @@ cmd_confirm() {
 
 	mergen_safe_mode_confirm
 	echo "[OK] Degisiklikler onaylandi. Watchdog zamanlayicisi iptal edildi."
+	return 0
+}
+
+# ── Flush ─────────────────────────────────────────────────
+
+cmd_flush() {
+	local confirmed=0
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--confirm) confirmed=1; shift ;;
+			*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'. 'mergen help flush' ile kullanimi gorun.\n" "$1" >&2
+				return 2
+				;;
+		esac
+	done
+
+	if [ "$confirmed" -ne 1 ]; then
+		echo "[!] Bu islem tum Mergen rotalarini ve setlerini kalici olarak siler." >&2
+		echo "    Devam etmek icin: mergen flush --confirm" >&2
+		return 1
+	fi
+
+	# Acquire lock
+	if ! mergen_lock_acquire; then
+		echo "[!] Hata: Baska bir mergen islemi calisiyor. Kilit alinamadi." >&2
+		return 1
+	fi
+
+	mergen_log "warning" "CLI" "Flush islemi baslatildi — tum rotalar temizleniyor"
+	echo "[*] Tum Mergen rotalari temizleniyor..."
+
+	mergen_route_remove_all
+
+	echo "[OK] Tum rotalar, ip kurallari ve setler temizlendi."
+	mergen_log "info" "CLI" "Flush islemi tamamlandi"
+
+	mergen_lock_release
+	return 0
+}
+
+# ── Diag ──────────────────────────────────────────────────
+
+cmd_diag() {
+	local test_asn=""
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--asn)
+				[ -z "$2" ] && { echo "[!] Hata: --asn degeri gerekli." >&2; return 2; }
+				test_asn="$2"; shift 2
+				;;
+			*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'. 'mergen help diag' ile kullanimi gorun.\n" "$1" >&2
+				return 2
+				;;
+		esac
+	done
+
+	cmd_version
+	echo ""
+
+	# Packet engine info
+	printf "=== Paket Motoru ===\n"
+	mergen_engine_detect
+	printf "Motor:    %s\n" "$MERGEN_ENGINE_ACTIVE"
+	mergen_uci_get "global" "packet_engine" "auto"
+	printf "UCI:      %s\n" "$MERGEN_UCI_RESULT"
+	echo ""
+
+	# IP rules (mergen-related)
+	printf "=== IP Kurallari ===\n"
+	local mergen_rules
+	mergen_rules="$(ip rule show 2>/dev/null | grep "fwmark" 2>/dev/null)"
+	if [ -n "$mergen_rules" ]; then
+		echo "$mergen_rules"
+	else
+		echo "(mergen fwmark kurali yok)"
+	fi
+	echo ""
+
+	# Routing tables (mergen-managed range)
+	printf "=== Routing Tablolari ===\n"
+	mergen_uci_get "global" "default_table" "100"
+	local table_start="$MERGEN_UCI_RESULT"
+	local table_end=$((table_start + 999))
+	local found_tables=0
+	local tbl
+	for tbl in $(seq "$table_start" "$table_end"); do
+		local count
+		count="$(ip route show table "$tbl" 2>/dev/null | wc -l | tr -d ' ')"
+		if [ "$count" -gt 0 ]; then
+			printf "Tablo %s: %s rota\n" "$tbl" "$count"
+			found_tables=$((found_tables + 1))
+		fi
+	done
+	[ "$found_tables" -eq 0 ] && echo "(mergen routing tablosu yok)"
+	echo ""
+
+	# nft/ipset sets
+	printf "=== Set Durumu ===\n"
+	case "$MERGEN_ENGINE_ACTIVE" in
+		nftables)
+			local nft_sets
+			nft_sets="$(nft list sets inet mergen 2>/dev/null)"
+			if [ -n "$nft_sets" ]; then
+				echo "$nft_sets"
+			else
+				echo "(nft seti yok)"
+			fi
+			;;
+		ipset)
+			local ipsets
+			ipsets="$(ipset list -name 2>/dev/null | grep "^mergen_")"
+			if [ -n "$ipsets" ]; then
+				echo "$ipsets"
+			else
+				echo "(ipset seti yok)"
+			fi
+			;;
+		*)
+			echo "(paket motoru aktif degil)"
+			;;
+	esac
+	echo ""
+
+	# Network interfaces
+	printf "=== Arayuzler ===\n"
+	ip link show 2>/dev/null | grep -E "^[0-9]+:" | while IFS= read -r line; do
+		local iface state
+		iface="$(echo "$line" | sed 's/^[0-9]*: //' | cut -d: -f1)"
+		if echo "$line" | grep -q "UP"; then
+			state="UP"
+		else
+			state="DOWN"
+		fi
+		printf "  %-16s %s\n" "$iface" "$state"
+	done
+	echo ""
+
+	# Optional: ASN resolution test
+	if [ -n "$test_asn" ]; then
+		printf "=== ASN Cozumleme Testi (AS%s) ===\n" "$test_asn"
+		if mergen_resolve_asn "$test_asn"; then
+			printf "Provider: %s\n" "$MERGEN_RESOLVE_PROVIDER"
+			printf "IPv4:     %s prefix\n" "$MERGEN_RESOLVE_COUNT_V4"
+			printf "IPv6:     %s prefix\n" "$MERGEN_RESOLVE_COUNT_V6"
+		else
+			echo "[!] ASN cozumleme basarisiz."
+		fi
+	fi
+
+	return 0
+}
+
+# ── Log ───────────────────────────────────────────────────
+
+cmd_log() {
+	local tail_count="" level_filter="" component_filter=""
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--tail)
+				[ -z "$2" ] && { echo "[!] Hata: --tail degeri gerekli." >&2; return 2; }
+				tail_count="$2"; shift 2
+				;;
+			--level)
+				[ -z "$2" ] && { echo "[!] Hata: --level degeri gerekli." >&2; return 2; }
+				level_filter="$2"; shift 2
+				;;
+			--component)
+				[ -z "$2" ] && { echo "[!] Hata: --component degeri gerekli." >&2; return 2; }
+				component_filter="$2"; shift 2
+				;;
+			*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'. 'mergen help log' ile kullanimi gorun.\n" "$1" >&2
+				return 2
+				;;
+		esac
+	done
+
+	# Build query args
+	local args=""
+	[ -n "$tail_count" ] && args="${args} --tail ${tail_count}"
+	[ -n "$level_filter" ] && args="${args} --level ${level_filter}"
+	[ -n "$component_filter" ] && args="${args} --component ${component_filter}"
+
+	local output
+	output="$(mergen_log_query $args)"
+
+	if [ -z "$output" ]; then
+		echo "(mergen log kaydi bulunamadi)"
+		return 0
+	fi
+
+	echo "$output"
 	return 0
 }
 
@@ -680,6 +946,9 @@ if [ "${MERGEN_SOURCED:-0}" != "1" ]; then
 		apply)
 			shift; cmd_apply "$@"
 			;;
+		flush)
+			shift; cmd_flush "$@"
+			;;
 		rollback)
 			shift; cmd_rollback "$@"
 			;;
@@ -688,6 +957,12 @@ if [ "${MERGEN_SOURCED:-0}" != "1" ]; then
 			;;
 		status)
 			shift; cmd_status "$@"
+			;;
+		diag)
+			shift; cmd_diag "$@"
+			;;
+		log)
+			shift; cmd_log "$@"
 			;;
 		validate)
 			shift; cmd_validate "$@"
