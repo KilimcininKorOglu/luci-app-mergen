@@ -1,6 +1,6 @@
 # Mergen - OpenWrt ASN/IP Bazlı Policy Routing
 
-version: 1.2
+version: 1.3
 
 > *Mergen: Türk-Altay mitolojisinde bilgelik ve okçuluk tanrısı. Oku daima hedefe ulaştırır.*
 
@@ -32,7 +32,7 @@ mergen add --ip 10.0.0.0/8 --via lan       # Dahili trafik -> LAN
 mergen apply                                # Kuralları uygula
 ```
 
-Tek komutla ASN'in tüm prefix'lerini çözümleyip, ip rule + ip route + nftables/ipset kurallarına dönüştüren, OpenWrt-native bir policy routing daemon'u.
+Tek komutla ASN'in tüm prefix'lerini çözümleyip, ip rule + ip route + nftables/ipset kurallarına dönüştüren, OpenWrt-native bir policy routing aracı. Hibrit mimari: on-demand CLI komutları + hafif watchdog daemon (hotplug olayları, periyodik güncelleme, safe mode).
 
 ## 3. Hedefler
 
@@ -59,8 +59,8 @@ Tek komutla ASN'in tüm prefix'lerini çözümleyip, ip rule + ip route + nftabl
 > "Türkiye'deki ISP'm bazı siteleri yavaşlatıyor. Cloudflare (AS13335) ve Google (AS15169) trafiğimi VPN'den geçirmek istiyorum, geri kalan trafik normal WAN'dan gitsin."
 
 ```
-mergen add --asn 13335 --via wg0 --label cloudflare
-mergen add --asn 15169 --via wg0 --label google
+mergen add --asn 13335 --via wg0 --name cloudflare
+mergen add --asn 15169 --via wg0 --name google
 mergen apply
 ```
 
@@ -69,40 +69,42 @@ mergen apply
 > "Evde iki ISP var. İş trafiğim (Microsoft AS8075) fiber'den, torrent trafiğim LTE'den geçsin."
 
 ```
-mergen add --asn 8075 --via wan_fiber --label microsoft-is
-mergen add --ip 10.0.0.0/8 --via wan_lte --label torrent-peers
+mergen add --asn 8075 --via wan_fiber --name microsoft-is
+mergen add --ip 10.0.0.0/8 --via wan_lte --name torrent-peers
 mergen apply
 ```
 
 ### 4.3 Sistem Yöneticisi (Toplu Kural)
 
-> "Bir YAML dosyasından tüm kuralları yüklemek istiyorum."
+> "Bir JSON dosyasından tüm kuralları yüklemek istiyorum."
 
-```yaml
-# /etc/mergen/rules.d/office.yaml
-rules:
-  - name: cloudflare
-    asn: 13335
-    via: wg0
-    priority: 100
-
-  - name: google-services
-    asn:
-      - 15169
-      - 36040
-    via: wg0
-    priority: 200
-
-  - name: internal
-    ip:
-      - 10.0.0.0/8
-      - 172.16.0.0/12
-    via: lan
-    priority: 50
+```json
+{
+  "rules": [
+    {
+      "name": "cloudflare",
+      "asn": 13335,
+      "via": "wg0",
+      "priority": 100
+    },
+    {
+      "name": "google-services",
+      "asn": [15169, 36040],
+      "via": "wg0",
+      "priority": 200
+    },
+    {
+      "name": "internal",
+      "ip": ["10.0.0.0/8", "172.16.0.0/12"],
+      "via": "lan",
+      "priority": 50
+    }
+  ]
+}
 ```
 
 ```
-mergen import /etc/mergen/rules.d/office.yaml
+mergen import /etc/mergen/rules.d/office.json
 mergen apply
 ```
 
@@ -115,6 +117,36 @@ LuCI'de:
 2. "Yeni Kural" butonuna tıkla
 3. ASN veya IP gir, hedef arayüzü seç
 4. "Uygula" tıkla
+
+### 4.5 Failover Senaryosu
+
+> "VPN tünelim zaman zaman düşüyor. Düştüğünde trafik normal WAN'dan gitsin, VPN geldiğinde otomatik geri dönsün."
+
+```
+mergen add --asn 13335 --via wg0 --fallback wan --name cloudflare
+mergen apply
+```
+
+### 4.6 Hata Kurtarma Senaryosu
+
+> "Yanlış bir kural girdim ve SSH erişimim kesildi. Router'ı yeniden başlattığımda her şeyin düzelmesini istiyorum."
+
+```bash
+# Safe mode aktif — apply sonrası 60 saniye içinde onay gelmezse otomatik rollback
+root@OpenWrt:~# mergen apply --safe
+[*] Safe mode: 60 saniye içinde onay bekleniyor...
+[*] Ping 8.8.8.8 başarısız. Otomatik rollback yapılıyor...
+[+] Önceki durum geri yüklendi.
+```
+
+### 4.7 Ülke Bazlı Senaryo
+
+> "Türkiye'deki tüm ASN'lere giden trafiği normal WAN'dan, diğer her şeyi VPN'den geçirmek istiyorum."
+
+```
+mergen add --country TR --via wan --name turkiye-direkt
+mergen apply
+```
 
 ## 5. Mimari
 
@@ -130,7 +162,7 @@ LuCI'de:
               /etc/config/mergen
                        |
 +----------------------+----------------------+
-|               mergen daemon                  |
+|               mergen (CLI + Watchdog)        |
 |                                              |
 |  +----------+  +----------+  +------------+  |
 |  | ASN      |  | Rule     |  | Route      |  |
@@ -140,9 +172,31 @@ LuCI'de:
 |  +----+-----+  +----+-----+  +-----+------+  |
 |  | Provider |  | nftables |  | ip rule    |  |
 |  | Plugins  |  | / ipset  |  | ip route   |  |
-|  +----------+  +----------+  +------------+  |
+|  +----+-----+  +----------+  +------------+  |
+|       |                                       |
+|  +----+-----+                                 |
+|  | Cache    |                                 |
+|  | Layer    |                                 |
+|  +----------+                                 |
 +---------------------------------------------+
 ```
+
+### 5.1.1 Hibrit Daemon Modeli
+
+Mergen iki bileşenden oluşur:
+
+**`mergen` (CLI)**: On-demand çalışır, kullanıcı komutlarını işler. Komut tamamlanınca süreç sonlanır. Tüm ağır işlemler (ASN çözümleme, route uygulama, import/export) burada yapılır.
+
+**`mergen-watchdog` (Daemon)**: Procd tarafından yönetilen hafif daemon. Görevleri:
+- Hotplug olaylarını dinleme (arayüz up/down)
+- Periyodik prefix güncelleme (cron yerine dahili zamanlayıcı)
+- Safe mode ping kontrolü (apply sonrası bağlantı doğrulama)
+- Arayüz sağlık kontrolü (failover tetikleyici)
+
+İki bileşen arasındaki iletişim:
+- **UCI config**: Ortak yapılandırma kaynağı
+- **Lock dosyası**: `/var/lock/mergen.lock` -- eşzamanlı erişim kontrolü
+- **Durum dosyası**: `/tmp/mergen/status.json` -- watchdog'un güncel durumu
 
 ### 5.2 Bileşenler
 
@@ -219,7 +273,8 @@ Kullanıcı komutu / LuCI / cron tetikleyici
 | Route Manager | Shell (ip, nft komutları) | Doğrudan kernel arayüzü             |
 | UCI Binding   | Lua (libuci)              | OpenWrt standart yapılandırma       |
 | LuCI App      | Lua + HTML/JS             | OpenWrt LuCI framework standardı    |
-| Veri Formatı  | UCI + YAML (opsiyonel)    | UCI native, YAML import/export için |
+| Veri Formatı  | UCI + JSON                | UCI native, JSON import/export için |
+| Watchdog      | Shell (ash) + procd       | Hibrit model, hafif daemon          |
 
 ### 6.3 UCI Yapılandırma Yapısı
 
@@ -232,6 +287,11 @@ config mergen 'global'
     option update_interval '86400'      # 24 saat
     option default_table '100'
     option ipv6_enabled '1'
+    option cache_dir '/tmp/mergen/cache'
+    option watchdog_enabled '1'
+    option watchdog_interval '60'
+    option safe_mode_ping_target '8.8.8.8'
+    option config_version '1'
 
 config provider 'ripe'
     option enabled '1'
@@ -293,23 +353,26 @@ mergen <komut> [seçenekler]
 | `status`   | Daemon ve kural durumu                    | `mergen status`                    |
 | `update`   | ASN prefix listelerini güncelle           | `mergen update`                    |
 | `resolve`  | ASN'in prefix'lerini göster (uygulamadan) | `mergen resolve 13335`             |
-| `import`   | YAML/JSON dosyasından kural yükle         | `mergen import rules.yaml`         |
-| `export`   | Kuralları YAML/JSON olarak dışarı aktar   | `mergen export --format yaml`      |
+| `import`   | JSON dosyasından kural yükle              | `mergen import rules.json`         |
+| `export`   | Kuralları UCI veya JSON olarak dışarı aktar | `mergen export --format json`      |
 | `enable`   | Kural veya daemon'u etkinleştir           | `mergen enable cloudflare`         |
 | `disable`  | Kural veya daemon'u devre dışı bırak      | `mergen disable cloudflare`        |
 | `flush`    | Tüm Mergen route'larını temizle           | `mergen flush`                     |
 | `log`      | Log kayıtlarını göster                    | `mergen log --tail 50`             |
 | `diag`     | Tanı/debug bilgisi                        | `mergen diag --asn 13335`          |
+| `version`  | Sürüm bilgisi göster                      | `mergen version`                   |
+| `help`     | Komut yardımı                             | `mergen help add`                  |
+| `validate` | Config doğrulama (apply etmeden)          | `mergen validate`                  |
 
 ### 7.3 Örnek Oturum
 
 ```bash
 # ASN bazlı kural ekle
-root@OpenWrt:~# mergen add --asn 13335 --via wg0 --label cloudflare
+root@OpenWrt:~# mergen add --asn 13335 --via wg0 --name cloudflare
 [+] Kural eklendi: cloudflare (AS13335 -> wg0)
 
 # IP bazlı kural ekle
-root@OpenWrt:~# mergen add --ip 185.70.40.0/22 --via wg0 --label protonmail
+root@OpenWrt:~# mergen add --ip 185.70.40.0/22 --via wg0 --name protonmail
 [+] Kural eklendi: protonmail (185.70.40.0/22 -> wg0)
 
 # Kuralları listele
@@ -337,7 +400,40 @@ Last sync: 2026-04-03 14:30:00 UTC
 Next sync: 2026-04-04 14:30:00 UTC
 ```
 
+### 7.4 Hata Mesajları
+
+Mergen, kullanıcıya açıklayıcı hata mesajları verir:
+
+```bash
+# Geçersiz ASN
+root@OpenWrt:~# mergen add --asn abc --via wg0 --name test
+[!] Hata: 'abc' geçerli bir ASN numarası değil. Örnek: 13335
+
+# Olmayan arayüz
+root@OpenWrt:~# mergen add --asn 13335 --via wg99 --name cf
+[!] Hata: 'wg99' arayüzü bulunamadı. Mevcut arayüzler: wan, wg0, lan
+
+# Prefix limiti aşımı
+root@OpenWrt:~# mergen apply
+[!] Uyarı: cloudflare (AS13335) prefix limiti (10000) aşıyor (12453 prefix).
+    --force ile zorlayabilir veya limiti artırabilirsiniz.
+
+# API hatası ve provider fallback
+root@OpenWrt:~# mergen resolve 13335
+[!] RIPE API yanıt vermedi (timeout: 30s). Sonraki provider deneniyor...
+[*] bgp.tools: 847 prefix bulundu (v4: 612, v6: 235)
+
+# Apply hatası ve otomatik rollback
+root@OpenWrt:~# mergen apply --safe
+[*] Kurallar uygulanıyor...
+[*] Safe mode: bağlantı testi yapılıyor (8.8.8.8)...
+[!] Bağlantı testi başarısız. Otomatik rollback yapılıyor...
+[+] Önceki durum geri yüklendi. Kurallarınızı kontrol edin.
+```
+
 ## 8. LuCI Arayüzü
+
+LuCI1 (Lua/CBI) mimarisi bilinçli olarak tercih edilmiştir. LuCI1, OpenWrt 23.05 ve sonraki sürümlerde hâlâ tam desteklenmekte olup daha geniş cihaz uyumluluğu ve daha düşük kaynak tüketimi sağlar. Server-side rendering modeli, düşük bellekli cihazlarda (32 MB RAM) daha verimli çalışır.
 
 ### 8.1 Genel Bakış Sayfası
 
@@ -378,7 +474,7 @@ Kural yönetiminin merkezi. Tüm CRUD işlemleri bu sayfadan yapılır.
 |-------------|----------------------------------------------------------------|
 | Sıra        | Sürükle-bırak ile öncelik değiştirme tutamacı                 |
 | Durum       | Açma/kapama toggle switch                                      |
-| Ad          | Kuralın label'ı (tıklanabilir, düzenleme formunu açar)         |
+| Ad          | Kuralın adı (tıklanabilir, düzenleme formunu açar)             |
 | Tür         | ASN / IP / Karma — ikon ile gösterim                           |
 | Hedef       | ASN numaraları veya IP/CIDR blokları (kısaltılmış, hover'da tam liste) |
 | Arayüz      | Hedef arayüz adı (wg0, wan2, vb.) — dropdown ile değiştirilebilir |
@@ -406,7 +502,7 @@ Kural yönetiminin merkezi. Tüm CRUD işlemleri bu sayfadan yapılır.
 - Çoklu seçim checkbox'ları ile toplu aktif/pasif yapma
 - Toplu silme (onay dialogu ile)
 - Toplu arayüz değiştirme
-- YAML/JSON olarak dışa aktarma (seçili kurallar)
+- JSON olarak dışa aktarma (seçili kurallar)
 
 **Sürükle-Bırak Önceliklendirme**:
 - Kural satırlarını sürükleyerek sıralama değiştirme
@@ -419,7 +515,7 @@ ASN keşif ve önizleme aracı. Kullanıcı kural eklemeden önce ASN'leri araş
 
 **Arama Bölümü**:
 - **ASN Numarası ile Arama**: "AS13335" veya "13335" formatında giriş
-- **Organizasyon Adı ile Arama**: "Cloudflare", "Google" gibi metin arama
+- **Organizasyon Adı ile Arama**: "Cloudflare", "Google" gibi metin arama (RIPE ve bgpview provider'ları destekler)
 - **IP Adresi ile Ters Arama**: Bir IP adresinin hangi ASN'e ait olduğunu bulma
 - Arama sonuçları anlık olarak (debounced) listelenir
 
@@ -537,7 +633,7 @@ ASN veri kaynağı provider'larının yapılandırması.
 Mergen daemon'unun log kayıtlarını gerçek zamanlı görüntüleme ve filtreleme.
 
 **Canlı Log Akışı**:
-- Otomatik kaydırma ile gerçek zamanlı log görüntüleme (websocket veya polling)
+- Otomatik kaydırma ile gerçek zamanlı log görüntüleme (XHR polling (luci-mod-rpc))
 - Duraklatma/devam ettirme butonu
 - Her log satırında: zaman damgası, seviye, bileşen, mesaj
 
@@ -632,6 +728,7 @@ Mergen daemon'unun log kayıtlarını gerçek zamanlı görüntüleme ve filtrel
 ```
 mergen/                         # Ana OpenWrt paketi
 +-- Makefile                    # OpenWrt buildroot Makefile
++-- tests/                      # Test dosyalari
 +-- files/
 |   +-- etc/
 |   |   +-- config/
@@ -647,10 +744,12 @@ mergen/                         # Ana OpenWrt paketi
 |   |       |   +-- bgptools.sh
 |   |       |   +-- bgpview.sh
 |   |       |   +-- maxmind.sh
-|   |       +-- rules.d/        # Ek kural dosyalari (YAML import)
+|   |       +-- rules.d/        # Ek kural dosyalari (JSON import)
 |   +-- usr/
 |       +-- bin/
 |       |   +-- mergen          # Ana CLI binary/script
+|       +-- sbin/
+|       |   +-- mergen-watchdog # Watchdog daemon scripti
 |       +-- lib/
 |           +-- mergen/
 |               +-- core.sh     # Cekirdek fonksiyonlar
@@ -660,6 +759,7 @@ mergen/                         # Ana OpenWrt paketi
 |               +-- utils.sh    # Yardimci fonksiyonlar
 +-- luci-app-mergen/            # LuCI paketi (ayri)
     +-- Makefile
+    +-- po/                     # i18n: Ingilizce birincil, Turkce ikincil
     +-- htdocs/
     |   +-- luci-static/
     |       +-- mergen/
@@ -690,6 +790,23 @@ mergen/                         # Ana OpenWrt paketi
 | Man-in-the-middle (API)       | HTTPS zorunlu, sertifika doğrulama                        |
 | Hatalı route ile erişim kaybı | Rollback mekanizması, watchdog timer                      |
 
+## 10.1 Yapılandırma Migrasyon Stratejisi
+
+UCI config yapısı sürümler arasında değişebilir. Güvenli geçiş mekanizması:
+
+| Mekanizma                    | Açıklama                                                       |
+|------------------------------|----------------------------------------------------------------|
+| Config versiyonlama          | `option config_version '1'` — mevcut config şema sürümü       |
+| Otomatik migrasyon           | `/usr/lib/mergen/migrate.sh` — sürüm yükseltmede çalışır      |
+| Geriye dönük uyumluluk       | 1 önceki major sürümün config formatı desteklenir              |
+| Yedekleme                    | Migrasyon öncesi otomatik yedek: `/tmp/mergen/config.backup`   |
+
+Migrasyon akışı:
+1. Paket güncellemesi sırasında `postinst` scripti `migrate.sh`'ı çağırır
+2. `config_version` kontrol edilir
+3. Eski sürümdeyse dönüşüm uygulanır, yeni `config_version` yazılır
+4. Başarısızlıkta yedekten geri yükleme
+
 ## 11. Performans Gereksinimleri
 
 | Metrik                      | Hedef                     |
@@ -712,6 +829,23 @@ mergen/                         # Ana OpenWrt paketi
 | Performans testi  | Büyük prefix listeleri ile stres testi         |
 | Platform testi    | x86 VM, Raspberry Pi (arm), GL.iNet (mips)     |
 | Regresyon testi   | OpenWrt 23.05, 24.xx sürümlerinde uyumluluk    |
+
+**Test Altyapısı**:
+
+| Bileşen         | Teknoloji                                                |
+|-----------------|----------------------------------------------------------|
+| Shell testleri  | shunit2 (ash/busybox uyumlu)                             |
+| Lua testleri    | busted (LuCI bileşenleri için)                           |
+| CI ortamı       | GitHub Actions + OpenWrt SDK Docker imajı                |
+| Lokal test      | OpenWrt x86 QEMU VM                                      |
+| Donanım testi   | x86 VM, Raspberry Pi (arm), GL.iNet (mips) — release öncesi |
+
+**Test Dağılımı (Fazlara Göre)**:
+- Faz 1: Birim testleri (resolver, rule engine, route manager)
+- Faz 2: Entegrasyon testleri (rollback, nftables, loglama)
+- Faz 3: Provider testleri (6 provider, fallback, cache)
+- Faz 4-5: LuCI testleri (E2E, tarayıcı uyumluluk)
+- Faz 6: Performans stres testi, platform doğrulama, regresyon
 
 ## 13. Fazlar ve Kilometre Taşları
 
@@ -750,13 +884,27 @@ mergen/                         # Ana OpenWrt paketi
 - [ ] Girdi validasyonu: IP/CIDR format kontrolü *(Bölüm 10)*
 
 **CLI Komutları — Temel** *(Bölüm 7.2)*:
-- [ ] `mergen add` — ASN veya IP/CIDR kuralı ekleme (`--asn`, `--ip`, `--via`, `--label`, `--priority`)
+- [ ] `mergen add` — ASN veya IP/CIDR kuralı ekleme (`--asn`, `--ip`, `--via`, `--name`, `--priority`)
 - [ ] `mergen remove` — İsme göre kural silme
 - [ ] `mergen list` — Tüm kuralları tablo formatında listeleme
 - [ ] `mergen apply` — Bekleyen kuralları sisteme uygulama
 - [ ] `mergen status` — Daemon durumu, kural sayıları, son sync zamanı
+- [ ] `mergen version` — Sürüm bilgisi gösterme
+- [ ] `mergen help` — Komut yardımı (`mergen help add`)
+- [ ] `mergen validate` — Config doğrulama (apply etmeden)
 
-**Kilometre Taşı**: `mergen add --asn 13335 --via wg0 && mergen apply` komutu çalışır, trafik wg0 üzerinden yönlendirilir.
+**Watchdog Temel Altyapısı** *(Bölüm 5.1.1)*:
+- [ ] `mergen-watchdog` daemon scripti (`/usr/sbin/mergen-watchdog`)
+- [ ] Procd service tanımı (init.d entegrasyonu)
+- [ ] Lock dosyası mekanizması (CLI ↔ watchdog koordinasyonu)
+
+**Birim Testleri — Temel** *(Bölüm 12)*:
+- [ ] shunit2 test altyapısı kurulumu
+- [ ] Resolver birim testleri (RIPE provider parse, hata durumları)
+- [ ] Rule engine birim testleri (ekleme, silme, listeleme)
+- [ ] Route manager birim testleri (ip rule/route komut üretimi)
+
+**Kilometre Taşı**: `mergen add --asn 13335 --via wg0 && mergen apply` komutu çalışır, trafik wg0 üzerinden yönlendirilir. `mergen version` ve `mergen help` çalışır. Temel birim testleri geçer.
 
 ---
 
@@ -797,6 +945,11 @@ Uzaktan erişilen cihazda güvenle çalışabilecek seviyeye getirme. Atomik uyg
 - [ ] HTTPS zorunluluğu (provider API çağrıları)
 - [ ] UCI dosya izinleri (0600)
 
+**Entegrasyon Testleri — Faz 2** *(Bölüm 12)*:
+- [ ] Rollback entegrasyon testleri (snapshot → hata → geri alma akışı)
+- [ ] nftables/ipset entegrasyon testleri (set oluşturma, element ekleme)
+- [ ] Loglama entegrasyon testleri (syslog çıktı doğrulama)
+
 **Kilometre Taşı**: Hatalı kural uygulandığında cihaz erişimi kesilmez, otomatik geri alma çalışır.
 
 ---
@@ -831,9 +984,9 @@ Tüm 6 ASN veri kaynağı, IPv6, otomatik güncelleme, import/export.
 - [ ] Kural birleştirme (aggregate): küçük CIDR'ları büyük bloklara toplama
 - [ ] Kural gruplama: label/tag sistemi
 
-**YAML Import/Export** *(Bölüm 4.3, 7.2)*:
-- [ ] `mergen import` — YAML/JSON dosyasından kural yükleme
-- [ ] `mergen export` — mevcut kuralları YAML/JSON olarak dışa aktarma
+**JSON Import/Export** *(Bölüm 4.3, 7.2)*:
+- [ ] `mergen import` -- JSON dosyasından kural yükleme
+- [ ] `mergen export` -- mevcut kuralları JSON olarak dışa aktarma
 - [ ] `/etc/mergen/rules.d/` dizininden otomatik yükleme
 
 **Otomatik Güncelleme** *(Bölüm 3.1)*:
@@ -848,6 +1001,11 @@ Tüm 6 ASN veri kaynağı, IPv6, otomatik güncelleme, import/export.
 
 **Ek CLI** *(Bölüm 7.2)*:
 - [ ] `mergen resolve` — ASN prefix'lerini göster (uygulamadan)
+
+**Provider Testleri — Faz 3** *(Bölüm 12)*:
+- [ ] Her 6 provider için birim testleri (API parse, hata durumları, timeout)
+- [ ] Fallback/cache entegrasyon testleri
+- [ ] IPv6 prefix çözümleme testleri
 
 **Kilometre Taşı**: 6 provider çalışır, IPv6 desteklenir, prefix'ler otomatik güncellenir, interface değişikliklerinde kurallar dinamik uyarlanır.
 
@@ -871,7 +1029,7 @@ Web panelinden çalışan temel kural yönetimi. Dört çekirdek sayfa.
 
 **8.2 Kurallar Sayfası — Temel** *(Bölüm 8.2)*:
 - [ ] Kural listesi tablosu (durum toggle, ad, tür, hedef, arayüz, prefix, öncelik)
-- [ ] Yeni kural ekleme formu (ASN/IP seçimi, arayüz dropdown, öncelik, label)
+- [ ] Yeni kural ekleme formu (ASN/IP seçimi, arayüz dropdown, öncelik, ad)
 - [ ] Kural düzenleme (inline veya modal form)
 - [ ] Kural silme (onay dialogu)
 - [ ] ASN/IP girdi validasyonu (format kontrolü, geçerlilik sorgusu)
@@ -889,6 +1047,10 @@ Web panelinden çalışan temel kural yönetimi. Dört çekirdek sayfa.
 - [ ] Prefix limiti ayarları
 - [ ] Güncelleme aralığı ayarı
 
+**LuCI Testleri — Faz 4** *(Bölüm 12)*:
+- [ ] busted ile LuCI controller/model birim testleri
+- [ ] RPC backend entegrasyon testleri
+
 **Kilometre Taşı**: Kullanıcı LuCI'den kural ekleyip uygulayabilir, provider ayarlarını değiştirebilir.
 
 ---
@@ -901,7 +1063,7 @@ Tüm 7 sayfanın tam özellikli hali. İleri düzey etkileşimler.
 - [ ] Sürükle-bırak ile kural önceliklendirme
 - [ ] Toplu işlemler: çoklu seçim, toplu aktif/pasif, toplu silme, toplu arayüz değiştirme
 - [ ] Kural kopyalama
-- [ ] YAML/JSON olarak seçili kuralları dışa aktarma
+- [ ] JSON olarak seçili kuralları dışa aktarma
 
 **8.3 ASN Tarayıcı Sayfası** *(Bölüm 8.3)*:
 - [ ] ASN numarası ile arama
@@ -976,13 +1138,11 @@ Tüm 7 sayfanın tam özellikli hali. İleri düzey etkileşimler.
 - [ ] mwan3 policy'lerine Mergen kural enjeksiyonu
 - [ ] Standalone / mwan3 modu seçimi
 
-**Test ve Platform Doğrulama** *(Bölüm 12)*:
-- [ ] Birim testleri (provider, resolver, engine fonksiyonları)
-- [ ] Entegrasyon testleri (UCI -> route uygulama akışı)
-- [ ] E2E testler (LuCI'den kural ekle -> trafik doğrula)
-- [ ] Platform testleri: x86 VM, Raspberry Pi (arm), GL.iNet (mips)
+**Performans ve Platform Doğrulama** *(Bölüm 12)*:
 - [ ] Performans stres testi: 50.000 prefix, 100+ kural *(Bölüm 11)*
-- [ ] OpenWrt 23.05 ve 24.xx sürüm uyumluluk testleri
+- [ ] Platform testleri: x86 VM, Raspberry Pi (arm), GL.iNet (mips)
+- [ ] OpenWrt 23.05 ve 24.xx sürüm uyumluluk (regresyon) testleri
+- [ ] E2E testler (LuCI'den kural ekle -> trafik doğrula)
 
 **Dağıtım** *(Bölüm 15)*:
 - [ ] OpenWrt paket feed'ine PR gönderimi
