@@ -21,3 +21,8 @@ config provider 'bgptools'
 	option priority '20'
 	option api_url 'https://bgp.tools/table.jsonl'
 	option timeout '30'
+
+config provider 'maxmind'
+	option enabled '0'
+	option priority '30'
+	option db_path '/usr/share/mergen/GeoLite2-ASN.mmdb'
