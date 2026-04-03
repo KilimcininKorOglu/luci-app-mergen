@@ -33,6 +33,7 @@ Komutlar:
   enable     Kurali etkinlestir
   disable    Kurali devre disi birak
   apply      Kurallari sisteme uygula
+  rollback   Son uygulama oncesine geri don
   status     Servis ve kural durumunu goster
   validate   Yapilandirmayi dogrula (uygulamadan)
   version    Surum bilgisi goster
@@ -131,6 +132,15 @@ yapar, ardindan ip rule/route komutlariyla yonlendirme tablolarini olusturur.
 Secenekler:
   --force    Prefix limiti uyarilarini atla
   --safe     Guvenli mod (baglanti kontrolu ile otomatik geri alma)
+HELP
+			;;
+		rollback)
+			cat <<'HELP'
+Kullanim: mergen rollback
+
+Son 'mergen apply' oncesindeki routing durumuna geri doner.
+Snapshot otomatik olarak her apply oncesinde olusturulur.
+Sadece en son snapshot saklanir.
 HELP
 			;;
 		status)
@@ -378,6 +388,10 @@ cmd_apply() {
 		return 1
 	fi
 
+	# Create snapshot before apply
+	echo "[*] Mevcut routing durumu kaydediliyor..."
+	mergen_snapshot_create
+
 	echo "[*] Kurallar uygulaniyor..."
 
 	local applied=0 failed=0 skipped=0
@@ -422,6 +436,37 @@ cmd_apply() {
 
 	[ "$failed" -gt 0 ] && return 1
 	return 0
+}
+
+# ── Rollback ──────────────────────────────────────────────
+
+cmd_rollback() {
+	if ! mergen_snapshot_exists; then
+		echo "[!] Hata: Geri yuklenecek snapshot bulunamadi." >&2
+		echo "    Once 'mergen apply' ile kural uygulayin." >&2
+		return 1
+	fi
+
+	# Show snapshot info
+	mergen_snapshot_info
+
+	# Acquire lock
+	if ! mergen_lock_acquire; then
+		echo "[!] Hata: Baska bir mergen islemi calisiyor. Kilit alinamadi." >&2
+		return 1
+	fi
+
+	echo "[*] Routing durumu geri yukleniyor..."
+
+	if mergen_snapshot_restore; then
+		echo "[OK] Geri yukleme tamamlandi."
+		mergen_lock_release
+		return 0
+	else
+		echo "[!] Hata: Geri yukleme basarisiz oldu." >&2
+		mergen_lock_release
+		return 1
+	fi
 }
 
 # ── Status ─────────────────────────────────────────────────
@@ -610,6 +655,9 @@ if [ "${MERGEN_SOURCED:-0}" != "1" ]; then
 			;;
 		apply)
 			shift; cmd_apply "$@"
+			;;
+		rollback)
+			shift; cmd_rollback "$@"
 			;;
 		status)
 			shift; cmd_status "$@"

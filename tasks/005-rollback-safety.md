@@ -10,7 +10,7 @@ Safe rule application for remotely managed devices. Atomic apply, state snapshot
 
 ### T014 - Routing State Snapshot & Rollback
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 2.5 days
 

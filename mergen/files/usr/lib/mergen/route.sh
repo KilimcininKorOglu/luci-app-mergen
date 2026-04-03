@@ -23,6 +23,7 @@ fi
 MERGEN_ROUTE_TABLE_BASE=100
 MERGEN_ROUTE_APPLIED_COUNT=0
 MERGEN_ROUTE_FAILED_COUNT=0
+MERGEN_SNAPSHOT_DIR="${MERGEN_TMP:-/tmp/mergen}/snapshot"
 
 # ── Gateway Detection ───────────────────────────────────
 
@@ -318,5 +319,161 @@ mergen_route_status() {
 	else
 		printf "Kural: %-16s Tablo: %-6s Rotalar: yok\n" "$rule_name" "$table_num"
 		return 1
+	fi
+}
+
+# ── Snapshot / Rollback ────────────────────────────────────
+
+# Create a snapshot of current routing state before apply
+# Saves ip rules, ip routes, and UCI config backup
+# Returns 0 on success, 1 on failure
+mergen_snapshot_create() {
+	[ -d "$MERGEN_SNAPSHOT_DIR" ] || mkdir -p "$MERGEN_SNAPSHOT_DIR"
+
+	mergen_log "info" "Snapshot" "Routing durumu kaydediliyor..."
+
+	# Save ip rules
+	ip rule save > "${MERGEN_SNAPSHOT_DIR}/rules.save" 2>/dev/null
+	if [ $? -ne 0 ]; then
+		# Fallback: save text format
+		ip rule show > "${MERGEN_SNAPSHOT_DIR}/rules.save" 2>/dev/null
+	fi
+
+	# Save all routes from mergen-managed tables
+	local table_start table_end
+	mergen_uci_get "global" "default_table" "100"
+	table_start="$MERGEN_UCI_RESULT"
+	table_end=$((table_start + 999))
+
+	# Save routes for each table that has entries
+	local tbl routes_saved=0
+	> "${MERGEN_SNAPSHOT_DIR}/routes.save"
+	tbl="$table_start"
+	while [ "$tbl" -le "$table_end" ]; do
+		local routes
+		routes="$(ip route show table "$tbl" 2>/dev/null)"
+		if [ -n "$routes" ]; then
+			echo "# table=$tbl" >> "${MERGEN_SNAPSHOT_DIR}/routes.save"
+			echo "$routes" >> "${MERGEN_SNAPSHOT_DIR}/routes.save"
+			routes_saved=$((routes_saved + 1))
+		fi
+		tbl=$((tbl + 1))
+		# Stop early after 50 empty tables in a row
+		if [ "$routes_saved" -eq 0 ] && [ "$tbl" -gt $((table_start + 50)) ]; then
+			break
+		fi
+	done
+
+	# Save UCI config backup
+	if [ -f /etc/config/mergen ]; then
+		cp /etc/config/mergen "${MERGEN_SNAPSHOT_DIR}/uci.backup" 2>/dev/null
+	fi
+
+	# Write snapshot metadata
+	cat > "${MERGEN_SNAPSHOT_DIR}/meta" <<METAEOF
+timestamp=$(date +%s)
+tables_saved=${routes_saved}
+METAEOF
+
+	mergen_log "info" "Snapshot" "Snapshot kaydedildi: ${MERGEN_SNAPSHOT_DIR}"
+	return 0
+}
+
+# Restore routing state from a snapshot
+# Removes all mergen-managed routes/rules and re-applies from snapshot
+# Returns 0 on success, 1 on failure
+mergen_snapshot_restore() {
+	if [ ! -d "$MERGEN_SNAPSHOT_DIR" ] || [ ! -f "${MERGEN_SNAPSHOT_DIR}/meta" ]; then
+		mergen_log "error" "Snapshot" "[!] Hata: Geri yukleme icin snapshot bulunamadi."
+		return 1
+	fi
+
+	mergen_log "info" "Snapshot" "Routing durumu geri yukleniyor..."
+
+	# Step 1: Remove all current mergen-managed routes and rules
+	mergen_route_remove_all
+
+	# Step 2: Restore routes from snapshot
+	if [ -f "${MERGEN_SNAPSHOT_DIR}/routes.save" ]; then
+		local current_table=""
+		while IFS= read -r line; do
+			case "$line" in
+				"# table="*)
+					current_table="${line#\# table=}"
+					;;
+				"")
+					continue
+					;;
+				*)
+					if [ -n "$current_table" ]; then
+						ip route add $line table "$current_table" 2>/dev/null
+					fi
+					;;
+			esac
+		done < "${MERGEN_SNAPSHOT_DIR}/routes.save"
+	fi
+
+	# Step 3: Restore ip rules from snapshot
+	if [ -f "${MERGEN_SNAPSHOT_DIR}/rules.save" ]; then
+		ip rule restore < "${MERGEN_SNAPSHOT_DIR}/rules.save" 2>/dev/null || {
+			# Fallback: parse text format and re-add rules
+			# Only restore mergen-managed rules (lookup tables >= default_table)
+			mergen_uci_get "global" "default_table" "100"
+			local base_table="$MERGEN_UCI_RESULT"
+
+			while IFS= read -r line; do
+				local tbl
+				tbl="$(echo "$line" | sed -n 's/.*lookup \([0-9]*\).*/\1/p')"
+				[ -z "$tbl" ] && continue
+				[ "$tbl" -lt "$base_table" ] && continue
+
+				local prefix priority
+				prefix="$(echo "$line" | sed -n 's/.*to \([^ ]*\).*/\1/p')"
+				priority="$(echo "$line" | sed -n 's/^\([0-9]*\):.*/\1/p')"
+
+				if [ -n "$prefix" ] && [ -n "$tbl" ]; then
+					ip rule add to "$prefix" lookup "$tbl" ${priority:+priority "$priority"} 2>/dev/null
+				fi
+			done < "${MERGEN_SNAPSHOT_DIR}/rules.save"
+		}
+	fi
+
+	mergen_log "info" "Snapshot" "Routing durumu geri yuklendi."
+	return 0
+}
+
+# Check if a snapshot exists
+# Returns 0 if snapshot exists, 1 otherwise
+mergen_snapshot_exists() {
+	[ -d "$MERGEN_SNAPSHOT_DIR" ] && [ -f "${MERGEN_SNAPSHOT_DIR}/meta" ]
+}
+
+# Get snapshot info
+# Prints timestamp and table count
+mergen_snapshot_info() {
+	if ! mergen_snapshot_exists; then
+		echo "Snapshot bulunamadi."
+		return 1
+	fi
+
+	local timestamp tables_saved
+	timestamp="$(sed -n 's/^timestamp=//p' "${MERGEN_SNAPSHOT_DIR}/meta")"
+	tables_saved="$(sed -n 's/^tables_saved=//p' "${MERGEN_SNAPSHOT_DIR}/meta")"
+
+	# Format timestamp
+	local date_str
+	date_str="$(date -d "@${timestamp}" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || \
+		date -r "$timestamp" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || \
+		echo "$timestamp")"
+
+	printf "Snapshot: %s (%s tablo)\n" "$date_str" "${tables_saved:-0}"
+	return 0
+}
+
+# Delete the current snapshot
+mergen_snapshot_delete() {
+	if [ -d "$MERGEN_SNAPSHOT_DIR" ]; then
+		rm -rf "$MERGEN_SNAPSHOT_DIR"
+		mergen_log "info" "Snapshot" "Snapshot silindi."
 	fi
 }
