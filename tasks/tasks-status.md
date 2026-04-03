@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 36    | 73%        |
+| NOT_STARTED | 35    | 71%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 13    | 27%        |
+| COMPLETED   | 14    | 29%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -53,7 +53,7 @@
 | T011 | F004    | Utility CLI (version/help/valid.) | P2       | 1d     | COMPLETED   | T010         |
 | T012 | F004    | Watchdog Daemon                   | P2       | 2d     | COMPLETED   | T001, T003   |
 | T013 | F004    | Unit Test Framework & Tests       | P2       | 1.5d   | COMPLETED   | T003-T009    |
-| T048 | F001    | Config Migration Script           | P2       | 1d     | NOT_STARTED | T002, T003   |
+| T048 | F001    | Config Migration Script           | P2       | 1d     | COMPLETED   | T002, T003   |
 
 ### Phase 2: Reliability & Security (9 tasks)
 

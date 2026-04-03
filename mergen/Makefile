@@ -28,6 +28,15 @@ define Package/mergen/conffiles
 /etc/config/mergen
 endef
 
+define Package/mergen/postinst
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] && exit 0
+# Run config migration on upgrade
+if [ -x /usr/lib/mergen/migrate.sh ]; then
+	/usr/lib/mergen/migrate.sh || true
+fi
+endef
+
 define Package/mergen/install
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/etc/config/mergen $(1)/etc/config/mergen
@@ -53,6 +62,7 @@ define Package/mergen/install
 	$(INSTALL_DATA) ./files/usr/lib/mergen/engine.sh $(1)/usr/lib/mergen/engine.sh
 	$(INSTALL_DATA) ./files/usr/lib/mergen/route.sh $(1)/usr/lib/mergen/route.sh
 	$(INSTALL_DATA) ./files/usr/lib/mergen/utils.sh $(1)/usr/lib/mergen/utils.sh
+	$(INSTALL_BIN) ./files/usr/lib/mergen/migrate.sh $(1)/usr/lib/mergen/migrate.sh
 endef
 
 $(eval $(call BuildPackage,mergen))
