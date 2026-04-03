@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 25    | 51%        |
+| NOT_STARTED | 24    | 49%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 24    | 49%        |
+| COMPLETED   | 25    | 51%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -74,7 +74,7 @@
 | Task | Feature | Name                              | Priority | Effort | Status      | Dependencies |
 |------|---------|-----------------------------------|----------|--------|-------------|--------------|
 | T023 | F008    | bgp.tools & bgpview.io Providers  | P2       | 2d     | COMPLETED   | T004         |
-| T024 | F008    | MaxMind GeoLite2 Provider         | P3       | 2d     | NOT_STARTED | T004         |
+| T024 | F008    | MaxMind GeoLite2 Provider         | P3       | 2d     | COMPLETED   | T004         |
 | T025 | F008    | RouteViews & IRR/RADB Providers   | P3       | 2.5d   | NOT_STARTED | T004         |
 | T026 | F008    | Provider Fallback & Health        | P2       | 2d     | NOT_STARTED | T004, T006   |
 | T027 | F009    | IPv6 Dual-Stack Routing           | P2       | 2.5d   | NOT_STARTED | T008, T017   |

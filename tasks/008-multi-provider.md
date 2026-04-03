@@ -47,7 +47,7 @@ Two additional REST API-based providers: bgp.tools and bgpview.io.
 
 ### T024 - MaxMind GeoLite2 Provider
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 2 days
 
