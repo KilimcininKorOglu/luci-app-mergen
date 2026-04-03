@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 44    | 90%        |
+| NOT_STARTED | 43    | 88%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 5     | 10%        |
+| COMPLETED   | 6     | 12%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -46,7 +46,7 @@
 | T004 | F002    | Provider Plugin Architecture      | P1       | 1.5d   | COMPLETED   | T003         |
 | T005 | F002    | RIPE Stat API Integration         | P1       | 2d     | NOT_STARTED | T004         |
 | T006 | F002    | Prefix Cache Layer                | P2       | 1.5d   | NOT_STARTED | T004, T005   |
-| T007 | F003    | Rule CRUD Operations              | P1       | 2d     | NOT_STARTED | T003         |
+| T007 | F003    | Rule CRUD Operations              | P1       | 2d     | COMPLETED   | T003         |
 | T008 | F003    | Policy Routing (ip rule/route)    | P1       | 2.5d   | NOT_STARTED | T003, T007   |
 | T009 | F003    | Input Validation Library          | P1       | 1d     | COMPLETED   | T001         |
 | T010 | F004    | Core CLI Commands                 | P1       | 3d     | NOT_STARTED | T003-T009    |
