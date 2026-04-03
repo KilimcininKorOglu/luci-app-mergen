@@ -9,6 +9,11 @@ MERGEN_UCI_RESULT=""
 # ── Logging ──────────────────────────────────────────────
 
 # Log levels: debug=0, info=1, warning=2, error=3
+# Component tags: Core, Engine, Route, Resolver, Provider, Daemon, CLI, NFT, IPSET, SafeMode, Snapshot
+
+MERGEN_LOG_LEVEL=""
+MERGEN_LOG_LEVEL_NUM=""
+
 _mergen_log_level_num() {
 	case "$1" in
 		debug)   echo 0 ;;
@@ -19,22 +24,28 @@ _mergen_log_level_num() {
 	esac
 }
 
+# Initialize logging — cache the configured log level
+# Call once at startup to avoid repeated UCI reads
+mergen_log_init() {
+	MERGEN_LOG_LEVEL="$(uci -q get ${MERGEN_CONF}.global.log_level 2>/dev/null)"
+	MERGEN_LOG_LEVEL="${MERGEN_LOG_LEVEL:-info}"
+	MERGEN_LOG_LEVEL_NUM="$(_mergen_log_level_num "$MERGEN_LOG_LEVEL")"
+}
+
 mergen_log() {
 	local level="$1" component="$2" message="$3"
-	local configured_level
 
-	# Read configured log level (default: info)
-	configured_level="$(uci -q get ${MERGEN_CONF}.global.log_level 2>/dev/null)"
-	configured_level="${configured_level:-info}"
+	# Lazy init: cache log level on first call if not initialized
+	if [ -z "$MERGEN_LOG_LEVEL_NUM" ]; then
+		mergen_log_init
+	fi
 
-	local msg_num configured_num
+	local msg_num
 	msg_num="$(_mergen_log_level_num "$level")"
-	configured_num="$(_mergen_log_level_num "$configured_level")"
 
 	# Only log if message level >= configured level
-	[ "$msg_num" -ge "$configured_num" ] || return 0
+	[ "$msg_num" -ge "$MERGEN_LOG_LEVEL_NUM" ] || return 0
 
-	local tag="mergen"
 	local syslog_priority="daemon.info"
 	case "$level" in
 		debug)   syslog_priority="daemon.debug" ;;
@@ -43,13 +54,59 @@ mergen_log() {
 		error)   syslog_priority="daemon.err" ;;
 	esac
 
-	logger -t "$tag" -p "$syslog_priority" "[${level}] [${component}] ${message}"
+	# ISO 8601 timestamp for structured log parsing
+	local timestamp
+	timestamp="$(date '+%Y-%m-%dT%H:%M:%S%z' 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S' 2>/dev/null)"
+
+	logger -t "mergen" -p "$syslog_priority" \
+		"${timestamp} [${level}] [${component}] ${message}"
 
 	# Output errors and warnings to stderr for CLI visibility
 	# In daemon mode, stderr goes to /dev/null; in CLI mode, it reaches the terminal
 	case "$level" in
 		error|warning) echo "$message" >&2 ;;
 	esac
+}
+
+# Query mergen logs from syslog
+# Usage: mergen_log_query [--tail N] [--level LEVEL] [--component COMP]
+# Prints filtered log entries to stdout
+mergen_log_query() {
+	local tail_count="" level_filter="" component_filter=""
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--tail)
+				tail_count="$2"; shift 2
+				;;
+			--level)
+				level_filter="$2"; shift 2
+				;;
+			--component)
+				component_filter="$2"; shift 2
+				;;
+			*)
+				shift
+				;;
+		esac
+	done
+
+	# Build grep pipeline
+	local cmd="logread -e mergen 2>/dev/null"
+
+	if [ -n "$level_filter" ]; then
+		cmd="${cmd} | grep '\\[${level_filter}\\]'"
+	fi
+
+	if [ -n "$component_filter" ]; then
+		cmd="${cmd} | grep '\\[${component_filter}\\]'"
+	fi
+
+	if [ -n "$tail_count" ]; then
+		cmd="${cmd} | tail -n ${tail_count}"
+	fi
+
+	eval "$cmd" 2>/dev/null
 }
 
 # ── UCI Wrappers ─────────────────────────────────────────
