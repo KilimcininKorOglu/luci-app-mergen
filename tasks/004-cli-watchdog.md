@@ -10,7 +10,7 @@ Mergen CLI main entry point, core commands, watchdog daemon infrastructure, and 
 
 ### T010 - Core CLI Commands
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 3 days
 

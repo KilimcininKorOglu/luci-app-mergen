@@ -44,6 +44,12 @@ mergen_log() {
 	esac
 
 	logger -t "$tag" -p "$syslog_priority" "[${level}] [${component}] ${message}"
+
+	# Output errors and warnings to stderr for CLI visibility
+	# In daemon mode, stderr goes to /dev/null; in CLI mode, it reaches the terminal
+	case "$level" in
+		error|warning) echo "$message" >&2 ;;
+	esac
 }
 
 # ── UCI Wrappers ─────────────────────────────────────────

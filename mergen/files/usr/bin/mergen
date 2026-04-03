@@ -3,34 +3,157 @@
 # Main CLI entry point
 
 MERGEN_VERSION="0.1.0"
-MERGEN_LIB_DIR="/usr/lib/mergen"
-MERGEN_CONF="mergen"
-MERGEN_LOCK="/var/lock/mergen.lock"
-MERGEN_TMP="/tmp/mergen"
+MERGEN_LIB_DIR="${MERGEN_LIB_DIR:-/usr/lib/mergen}"
+MERGEN_TMP="${MERGEN_TMP:-/tmp/mergen}"
 
-# Load core library
-. "${MERGEN_LIB_DIR}/core.sh"
+# Load OpenWrt shell functions (provides config_load, config_get, etc.)
+type config_load >/dev/null 2>&1 || { [ -f /lib/functions.sh ] && . /lib/functions.sh; }
 
-# Ensure temp directory exists
+# Load Mergen libraries (conditional guards for test sourcing)
+type mergen_log >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/core.sh"
+type validate_name >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/utils.sh"
+type mergen_rule_add >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/engine.sh"
+type mergen_resolve_asn >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/resolver.sh"
+type mergen_route_apply >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/route.sh"
+
+# Ensure temp directories exist
 [ -d "$MERGEN_TMP" ] || mkdir -p "$MERGEN_TMP"
-[ -d "${MERGEN_TMP}/cache" ] || mkdir -p "${MERGEN_TMP}/cache"
+
+# ── Usage / Help ───────────────────────────────────────────
 
 usage() {
-	cat <<-'USAGE'
-	Usage: mergen <command> [options]
+	cat <<'USAGE'
+Kullanim: mergen <komut> [secenekler]
 
-	Commands:
-	  add        Add a new routing rule
-	  remove     Remove a routing rule
-	  list       List all routing rules
-	  apply      Apply pending rules to the system
-	  status     Show daemon and rule status
-	  version    Show version information
-	  help       Show this help or command-specific help
+Komutlar:
+  add        Yeni yonlendirme kurali ekle
+  remove     Yonlendirme kurali sil
+  list       Tum kurallari listele
+  show       Kural detaylarini goster
+  enable     Kurali etkinlestir
+  disable    Kurali devre disi birak
+  apply      Kurallari sisteme uygula
+  status     Servis ve kural durumunu goster
+  version    Surum bilgisi goster
+  help       Bu yardimi veya komut yardimini goster
 
-	Run 'mergen help <command>' for command-specific help.
-	USAGE
+Detayli yardim: mergen help <komut>
+USAGE
 }
+
+cmd_help() {
+	local subcmd="$1"
+	case "$subcmd" in
+		"")
+			usage
+			;;
+		add)
+			cat <<'HELP'
+Kullanim: mergen add --name <AD> --asn <ASN> --via <ARAYUZ> [--priority <ONCELIK>]
+          mergen add --name <AD> --ip <CIDR> --via <ARAYUZ> [--priority <ONCELIK>]
+
+Yeni bir yonlendirme kurali ekler.
+
+Secenekler:
+  --name <AD>          Kural adi (benzersiz, alfanumerik + tire/alt cizgi)
+  --asn <ASN>          ASN numarasi (virgul ile birden fazla: 13335,15169)
+  --ip <CIDR>          IP/CIDR blogu (virgul ile birden fazla: 10.0.0.0/8,172.16.0.0/12)
+  --via <ARAYUZ>       Cikis arayuzu (orn: wg0, eth1)
+  --priority <ONCELIK> Oncelik degeri (1-32000, varsayilan: 100)
+
+Ornekler:
+  mergen add --name cloudflare --asn 13335 --via wg0
+  mergen add --name google --asn 15169,36040 --via wg0 --priority 200
+  mergen add --name internal --ip 10.0.0.0/8 --via lan
+HELP
+			;;
+		remove)
+			cat <<'HELP'
+Kullanim: mergen remove <AD>
+
+Belirtilen yonlendirme kuralini siler.
+
+Argumanlar:
+  <AD>    Silinecek kuralin adi
+
+Ornekler:
+  mergen remove cloudflare
+HELP
+			;;
+		list)
+			cat <<'HELP'
+Kullanim: mergen list
+
+Tum yonlendirme kurallarini tablo formatinda listeler.
+HELP
+			;;
+		show)
+			cat <<'HELP'
+Kullanim: mergen show <AD>
+
+Belirtilen kuralin detayli bilgilerini gosterir.
+
+Argumanlar:
+  <AD>    Goruntelenecek kuralin adi
+
+Ornekler:
+  mergen show cloudflare
+HELP
+			;;
+		enable)
+			cat <<'HELP'
+Kullanim: mergen enable <AD>
+
+Belirtilen kurali etkinlestirir.
+
+Argumanlar:
+  <AD>    Etkinlestirilecek kuralin adi
+HELP
+			;;
+		disable)
+			cat <<'HELP'
+Kullanim: mergen disable <AD>
+
+Belirtilen kurali devre disi birakir.
+
+Argumanlar:
+  <AD>    Devre disi birakilacak kuralin adi
+HELP
+			;;
+		apply)
+			cat <<'HELP'
+Kullanim: mergen apply [--force] [--safe]
+
+Tum aktif kurallari sisteme uygular. ASN kurallari icin prefix cozumlemesi
+yapar, ardindan ip rule/route komutlariyla yonlendirme tablolarini olusturur.
+
+Secenekler:
+  --force    Prefix limiti uyarilarini atla
+  --safe     Guvenli mod (baglanti kontrolu ile otomatik geri alma)
+HELP
+			;;
+		status)
+			cat <<'HELP'
+Kullanim: mergen status
+
+Mergen servis durumunu, kural sayilarini ve onbellek istatistiklerini gosterir.
+HELP
+			;;
+		version)
+			cat <<'HELP'
+Kullanim: mergen version
+
+Mergen surum bilgisi ve OpenWrt surum bilgisini gosterir.
+HELP
+			;;
+		*)
+			printf "[!] Hata: Bilinmeyen komut '%s'. 'mergen help' ile kullanilabilir komutlari gorun.\n" "$subcmd"
+			return 1
+			;;
+	esac
+}
+
+# ── Version ────────────────────────────────────────────────
 
 cmd_version() {
 	local openwrt_release=""
@@ -40,43 +163,346 @@ cmd_version() {
 	printf "\n"
 }
 
-cmd_help() {
-	local subcmd="$1"
-	case "$subcmd" in
-		"")
-			usage
-			;;
-		version)
-			echo "Usage: mergen version"
-			echo ""
-			echo "Display Mergen version and OpenWrt release information."
-			;;
-		help)
-			echo "Usage: mergen help [command]"
-			echo ""
-			echo "Show help for a specific command, or general help if no command given."
-			;;
-		*)
-			echo "[!] Error: Unknown command '$subcmd'. Run 'mergen help' for available commands."
-			return 1
-			;;
-	esac
+# ── Add ────────────────────────────────────────────────────
+
+cmd_add() {
+	local name="" type="" targets="" via="" priority=""
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--name)
+				[ -z "$2" ] && { echo "[!] Hata: --name degeri gerekli." >&2; return 2; }
+				name="$2"; shift 2
+				;;
+			--asn)
+				[ -z "$2" ] && { echo "[!] Hata: --asn degeri gerekli." >&2; return 2; }
+				if [ -n "$type" ] && [ "$type" != "asn" ]; then
+					echo "[!] Hata: --asn ve --ip ayni anda kullanilamaz." >&2
+					return 2
+				fi
+				type="asn"
+				if [ -n "$targets" ]; then
+					targets="${targets},${2}"
+				else
+					targets="$2"
+				fi
+				shift 2
+				;;
+			--ip)
+				[ -z "$2" ] && { echo "[!] Hata: --ip degeri gerekli." >&2; return 2; }
+				if [ -n "$type" ] && [ "$type" != "ip" ]; then
+					echo "[!] Hata: --asn ve --ip ayni anda kullanilamaz." >&2
+					return 2
+				fi
+				type="ip"
+				if [ -n "$targets" ]; then
+					targets="${targets},${2}"
+				else
+					targets="$2"
+				fi
+				shift 2
+				;;
+			--via)
+				[ -z "$2" ] && { echo "[!] Hata: --via degeri gerekli." >&2; return 2; }
+				via="$2"; shift 2
+				;;
+			--priority)
+				[ -z "$2" ] && { echo "[!] Hata: --priority degeri gerekli." >&2; return 2; }
+				priority="$2"; shift 2
+				;;
+			*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'. 'mergen help add' ile kullanimi gorun.\n" "$1" >&2
+				return 2
+				;;
+		esac
+	done
+
+	# Validate required fields
+	if [ -z "$name" ]; then
+		echo "[!] Hata: --name secenegi gerekli." >&2
+		echo "Kullanim: mergen add --name <AD> --asn <ASN> --via <ARAYUZ>" >&2
+		return 2
+	fi
+	if [ -z "$type" ]; then
+		echo "[!] Hata: --asn veya --ip secenegi gerekli." >&2
+		echo "Kullanim: mergen add --name <AD> --asn <ASN> --via <ARAYUZ>" >&2
+		return 2
+	fi
+	if [ -z "$via" ]; then
+		echo "[!] Hata: --via secenegi gerekli." >&2
+		echo "Kullanim: mergen add --name <AD> --asn <ASN> --via <ARAYUZ>" >&2
+		return 2
+	fi
+
+	if mergen_rule_add "$name" "$type" "$targets" "$via" "$priority"; then
+		printf "[+] Kural eklendi: %s (%s: %s -> %s)\n" "$name" "$type" "$targets" "$via"
+		return 0
+	fi
+	return 1
 }
 
-# Main command dispatch
-case "${1:-help}" in
-	version)
-		cmd_version
-		;;
-	help)
-		shift
-		cmd_help "$@"
-		;;
-	-h|--help)
-		usage
-		;;
-	*)
-		echo "[!] Error: Unknown command '$1'. Run 'mergen help' for available commands."
-		exit 1
-		;;
-esac
+# ── Remove ─────────────────────────────────────────────────
+
+cmd_remove() {
+	local name="$1"
+
+	if [ -z "$name" ]; then
+		echo "[!] Hata: Kural adi belirtilmeli." >&2
+		echo "Kullanim: mergen remove <AD>" >&2
+		return 2
+	fi
+
+	# Remove routes first (graceful — ignore errors if no routes exist)
+	mergen_route_remove "$name" 2>/dev/null
+
+	if mergen_rule_remove "$name"; then
+		printf "[+] Kural silindi: %s\n" "$name"
+		return 0
+	fi
+	return 1
+}
+
+# ── List ───────────────────────────────────────────────────
+
+cmd_list() {
+	mergen_rule_list
+}
+
+# ── Show ───────────────────────────────────────────────────
+
+cmd_show() {
+	local name="$1"
+
+	if [ -z "$name" ]; then
+		echo "[!] Hata: Kural adi belirtilmeli." >&2
+		echo "Kullanim: mergen show <AD>" >&2
+		return 2
+	fi
+
+	if ! mergen_rule_get "$name"; then
+		return 1
+	fi
+
+	printf "Ad:       %s\n" "$MERGEN_RULE_NAME"
+	printf "Tip:      %s\n" "$MERGEN_RULE_TYPE"
+	printf "Hedef:    %s\n" "$MERGEN_RULE_TARGETS"
+	printf "Arayuz:   %s\n" "$MERGEN_RULE_VIA"
+	printf "Oncelik:  %s\n" "$MERGEN_RULE_PRIORITY"
+
+	if [ "$MERGEN_RULE_ENABLED" = "1" ]; then
+		printf "Durum:    aktif\n"
+	else
+		printf "Durum:    devre disi\n"
+	fi
+
+	# Show routing status if available (return code ignored — optional info)
+	mergen_route_status "$name" 2>/dev/null
+	return 0
+}
+
+# ── Enable / Disable ──────────────────────────────────────
+
+cmd_enable() {
+	local name="$1"
+
+	if [ -z "$name" ]; then
+		echo "[!] Hata: Kural adi belirtilmeli." >&2
+		echo "Kullanim: mergen enable <AD>" >&2
+		return 2
+	fi
+
+	if mergen_rule_toggle "$name" "1"; then
+		printf "[+] Kural etkinlestirildi: %s\n" "$name"
+		return 0
+	fi
+	return 1
+}
+
+cmd_disable() {
+	local name="$1"
+
+	if [ -z "$name" ]; then
+		echo "[!] Hata: Kural adi belirtilmeli." >&2
+		echo "Kullanim: mergen disable <AD>" >&2
+		return 2
+	fi
+
+	if mergen_rule_toggle "$name" "0"; then
+		printf "[+] Kural devre disi birakildi: %s\n" "$name"
+		return 0
+	fi
+	return 1
+}
+
+# ── Apply ──────────────────────────────────────────────────
+
+cmd_apply() {
+	local force=0 safe=0
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--force) force=1; shift ;;
+			--safe)  safe=1; shift ;;
+			*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'. 'mergen help apply' ile kullanimi gorun.\n" "$1" >&2
+				return 2
+				;;
+		esac
+	done
+
+	# Safe mode placeholder (will be implemented in T016)
+	if [ "$safe" -eq 1 ]; then
+		echo "[*] Guvenli mod etkin"
+	fi
+
+	# Acquire lock
+	if ! mergen_lock_acquire; then
+		echo "[!] Hata: Baska bir mergen islemi calisiyor. Kilit alinamadi." >&2
+		return 1
+	fi
+
+	echo "[*] Kurallar uygulaniyor..."
+
+	local applied=0 failed=0 skipped=0
+
+	_cli_apply_cb() {
+		local section="$1"
+		local name enabled
+		config_get name "$section" "name" ""
+		config_get enabled "$section" "enabled" "1"
+
+		if [ "$enabled" != "1" ]; then
+			skipped=$((skipped + 1))
+			return 0
+		fi
+
+		if mergen_route_apply "$name"; then
+			applied=$((applied + 1))
+			_mergen_get_table_num "$name"
+			printf "[+] %s: Rota tablosu %s olusturuldu\n" "$name" "$MERGEN_TABLE_NUM"
+		else
+			failed=$((failed + 1))
+			printf "[!] %s: Uygulanamadi\n" "$name" >&2
+		fi
+	}
+
+	mergen_list_rules _cli_apply_cb
+
+	echo ""
+	if [ "$applied" -gt 0 ]; then
+		printf "[OK] %s kural basariyla uygulandi" "$applied"
+	else
+		printf "[OK] Uygulanacak aktif kural yok"
+	fi
+	[ "$failed" -gt 0 ] && printf ", %s basarisiz" "$failed"
+	[ "$skipped" -gt 0 ] && printf ", %s atlandi" "$skipped"
+	printf "\n"
+
+	# Write last sync timestamp
+	date +%s > "${MERGEN_TMP}/last_sync"
+
+	mergen_lock_release
+
+	[ "$failed" -gt 0 ] && return 1
+	return 0
+}
+
+# ── Status ─────────────────────────────────────────────────
+
+cmd_status() {
+	cmd_version
+	echo ""
+
+	# Daemon status
+	local pid_file="/var/run/mergen.pid"
+	if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file" 2>/dev/null)" 2>/dev/null; then
+		printf "Servis:       aktif (PID: %s)\n" "$(cat "$pid_file")"
+	else
+		printf "Servis:       devre disi\n"
+	fi
+	echo ""
+
+	# Rule counts
+	local total_rules active_rules disabled_rules
+	total_rules="$(mergen_count_rules)"
+	active_rules="$(mergen_count_rules_enabled 1)"
+	disabled_rules="$(mergen_count_rules_enabled 0)"
+	printf "Kurallar:     %s toplam (%s aktif, %s devre disi)\n" \
+		"$total_rules" "$active_rules" "$disabled_rules"
+
+	# Cache stats
+	mergen_resolver_init
+	printf "Onbellek:     %s\n" "$(mergen_cache_stats)"
+
+	# Last sync time
+	local last_sync_file="${MERGEN_TMP}/last_sync"
+	if [ -f "$last_sync_file" ]; then
+		local last_ts
+		last_ts="$(cat "$last_sync_file" 2>/dev/null)"
+		if [ -n "$last_ts" ]; then
+			local last_date
+			# Try GNU date format first, then BSD/macOS format
+			last_date="$(date -d "@${last_ts}" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
+			[ -z "$last_date" ] && last_date="$(date -r "$last_ts" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
+			[ -z "$last_date" ] && last_date="epoch: ${last_ts}"
+			printf "Son uygulama: %s\n" "$last_date"
+
+			# Calculate next sync
+			mergen_uci_get "global" "update_interval" "86400"
+			local interval="$MERGEN_UCI_RESULT"
+			local next_ts=$((last_ts + interval))
+			local next_date
+			next_date="$(date -d "@${next_ts}" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
+			[ -z "$next_date" ] && next_date="$(date -r "$next_ts" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
+			[ -z "$next_date" ] && next_date="epoch: ${next_ts}"
+			printf "Sonraki:      %s\n" "$next_date"
+		fi
+	else
+		printf "Son uygulama: henuz uygulanmadi\n"
+	fi
+}
+
+# ── Main Dispatch ──────────────────────────────────────────
+# Guard: skip dispatch when sourced for testing (MERGEN_SOURCED=1)
+
+if [ "${MERGEN_SOURCED:-0}" != "1" ]; then
+	case "${1:-help}" in
+		add)
+			shift; cmd_add "$@"
+			;;
+		remove)
+			shift; cmd_remove "$@"
+			;;
+		list)
+			shift; cmd_list "$@"
+			;;
+		show)
+			shift; cmd_show "$@"
+			;;
+		enable)
+			shift; cmd_enable "$@"
+			;;
+		disable)
+			shift; cmd_disable "$@"
+			;;
+		apply)
+			shift; cmd_apply "$@"
+			;;
+		status)
+			shift; cmd_status "$@"
+			;;
+		version)
+			cmd_version
+			;;
+		help)
+			shift; cmd_help "$@"
+			;;
+		-h|--help)
+			usage
+			;;
+		*)
+			printf "[!] Hata: Bilinmeyen komut '%s'. 'mergen help' ile kullanilabilir komutlari gorun.\n" "$1" >&2
+			exit 1
+			;;
+	esac
+fi
