@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 46    | 94%        |
+| NOT_STARTED | 45    | 92%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 3     | 6%         |
+| COMPLETED   | 4     | 8%         |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -42,7 +42,7 @@
 |------|---------|-----------------------------------|----------|--------|-------------|--------------|
 | T001 | F001    | OpenWrt Package Structure         | P1       | 2d     | COMPLETED   | None         |
 | T002 | F001    | UCI Configuration Schema          | P1       | 1.5d   | COMPLETED   | T001         |
-| T003 | F001    | UCI Read/Write Library            | P1       | 2d     | NOT_STARTED | T002         |
+| T003 | F001    | UCI Read/Write Library            | P1       | 2d     | COMPLETED   | T002         |
 | T004 | F002    | Provider Plugin Architecture      | P1       | 1.5d   | NOT_STARTED | T003         |
 | T005 | F002    | RIPE Stat API Integration         | P1       | 2d     | NOT_STARTED | T004         |
 | T006 | F002    | Prefix Cache Layer                | P2       | 1.5d   | NOT_STARTED | T004, T005   |
