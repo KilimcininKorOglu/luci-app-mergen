@@ -73,7 +73,7 @@ All rules are either fully applied or none are applied. Automatic rollback on an
 
 ### T016 - Watchdog Timer & Safe Mode
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 2 days
 

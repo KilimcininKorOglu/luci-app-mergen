@@ -548,3 +548,67 @@ mergen_snapshot_delete() {
 		mergen_log "info" "Snapshot" "Snapshot silindi."
 	fi
 }
+
+# ── Safe Mode ──────────────────────────────────────────────
+
+MERGEN_PENDING_FILE="${MERGEN_TMP:-/tmp/mergen}/pending_confirm"
+
+# Perform connectivity test (ping)
+# Returns 0 if target is reachable, 1 otherwise
+mergen_safe_mode_ping() {
+	local target="$1"
+	[ -z "$target" ] && target="8.8.8.8"
+
+	# Use 3 pings with 2 second timeout
+	if ping -c 3 -W 2 "$target" > /dev/null 2>&1; then
+		return 0
+	fi
+	return 1
+}
+
+# Create pending confirmation file
+# Watchdog will check this and auto-rollback if not confirmed in time
+mergen_safe_mode_start() {
+	local timeout="$1"
+	[ -z "$timeout" ] && timeout=60
+
+	cat > "$MERGEN_PENDING_FILE" <<PENDEOF
+timestamp=$(date +%s)
+timeout=${timeout}
+PENDEOF
+
+	mergen_log "info" "SafeMode" "Onay bekleniyor (zaman asimi: ${timeout}s)"
+}
+
+# Confirm safe mode — remove pending file
+mergen_safe_mode_confirm() {
+	if [ -f "$MERGEN_PENDING_FILE" ]; then
+		rm -f "$MERGEN_PENDING_FILE"
+		mergen_log "info" "SafeMode" "Degisiklikler onaylandi."
+		return 0
+	else
+		mergen_log "warning" "SafeMode" "Bekleyen onay bulunamadi."
+		return 1
+	fi
+}
+
+# Check if safe mode confirmation is pending
+mergen_safe_mode_pending() {
+	[ -f "$MERGEN_PENDING_FILE" ]
+}
+
+# Check if safe mode timer has expired
+# Returns 0 if expired, 1 if still within timeout
+mergen_safe_mode_expired() {
+	if ! mergen_safe_mode_pending; then
+		return 1
+	fi
+
+	local timestamp timeout now elapsed
+	timestamp="$(sed -n 's/^timestamp=//p' "$MERGEN_PENDING_FILE")"
+	timeout="$(sed -n 's/^timeout=//p' "$MERGEN_PENDING_FILE")"
+	now="$(date +%s)"
+	elapsed=$((now - timestamp))
+
+	[ "$elapsed" -ge "$timeout" ]
+}

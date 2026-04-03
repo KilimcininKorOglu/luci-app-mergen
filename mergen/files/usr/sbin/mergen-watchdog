@@ -123,6 +123,35 @@ watchdog_check_updates() {
 	fi
 }
 
+# ── Safe Mode Timer Check ─────────────────────────────────
+
+# Check if a safe mode confirmation has expired
+# If expired, auto-rollback to the snapshot
+watchdog_check_safe_mode() {
+	if ! mergen_safe_mode_pending; then
+		return 0
+	fi
+
+	if mergen_safe_mode_expired; then
+		mergen_log "warning" "Watchdog" "Guvenli mod suresi doldu! Otomatik geri alma baslatiliyor..."
+
+		if mergen_lock_acquire 10; then
+			if mergen_snapshot_exists; then
+				mergen_snapshot_restore
+				mergen_log "info" "Watchdog" "Otomatik geri alma tamamlandi."
+			else
+				mergen_log "error" "Watchdog" "Snapshot bulunamadi, geri alma yapilamadi."
+			fi
+
+			# Remove pending file
+			rm -f "$MERGEN_PENDING_FILE"
+			mergen_lock_release
+		else
+			mergen_log "warning" "Watchdog" "Kilit alinamadi, geri alma ertelendi."
+		fi
+	fi
+}
+
 # ── Main Loop ─────────────────────────────────────────────
 # Guard: skip when sourced for testing (MERGEN_WATCHDOG_SOURCED=1)
 
@@ -144,6 +173,7 @@ if [ "${MERGEN_WATCHDOG_SOURCED:-0}" != "1" ]; then
 
 	while [ "$_watchdog_running" -eq 1 ]; do
 		watchdog_check_updates
+		watchdog_check_safe_mode
 		watchdog_write_status
 
 		# Sleep in 1-second intervals for responsive signal handling

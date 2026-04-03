@@ -34,6 +34,7 @@ Komutlar:
   disable    Kurali devre disi birak
   apply      Kurallari sisteme uygula
   rollback   Son uygulama oncesine geri don
+  confirm    Guvenli mod degisikliklerini onayla
   status     Servis ve kural durumunu goster
   validate   Yapilandirmayi dogrula (uygulamadan)
   version    Surum bilgisi goster
@@ -141,6 +142,14 @@ Kullanim: mergen rollback
 Son 'mergen apply' oncesindeki routing durumuna geri doner.
 Snapshot otomatik olarak her apply oncesinde olusturulur.
 Sadece en son snapshot saklanir.
+HELP
+			;;
+		confirm)
+			cat <<'HELP'
+Kullanim: mergen confirm
+
+'mergen apply --safe' sonrasi watchdog zamanlayicisini iptal eder.
+Onaylanmayan degisiklikler watchdog tarafindan otomatik geri alinir.
 HELP
 			;;
 		status)
@@ -377,7 +386,6 @@ cmd_apply() {
 		esac
 	done
 
-	# Safe mode placeholder (will be implemented in T016)
 	if [ "$safe" -eq 1 ]; then
 		echo "[*] Guvenli mod etkin"
 	fi
@@ -412,9 +420,45 @@ cmd_apply() {
 		return 1
 	fi
 
-	mergen_lock_release
+	# Safe mode: connectivity test after apply
+	if [ "$safe" -eq 1 ]; then
+		mergen_uci_get "global" "safe_mode_ping_target" "8.8.8.8"
+		local ping_target="$MERGEN_UCI_RESULT"
 
-	[ "$failed" -gt 0 ] && return 1
+		echo "[*] Baglanti testi yapiliyor (${ping_target})..."
+
+		if mergen_safe_mode_ping "$ping_target"; then
+			echo "[OK] Baglanti basarili."
+
+			# Start confirmation timer for watchdog
+			mergen_uci_get "global" "watchdog_interval" "60"
+			local timeout="$MERGEN_UCI_RESULT"
+			mergen_safe_mode_start "$timeout"
+			printf "[*] Degisiklikleri onaylamak icin %ss icinde 'mergen confirm' calistirin.\n" "$timeout"
+			printf "    Onaylanmazsa watchdog otomatik geri alacaktir.\n"
+		else
+			echo "[!] Baglanti testi basarisiz! Geri alma yapiliyor..." >&2
+			mergen_snapshot_restore
+			echo "[OK] Onceki routing durumuna geri donuldu."
+			mergen_lock_release
+			return 1
+		fi
+	fi
+
+	mergen_lock_release
+	return 0
+}
+
+# ── Confirm ───────────────────────────────────────────────
+
+cmd_confirm() {
+	if ! mergen_safe_mode_pending; then
+		echo "[!] Hata: Bekleyen onay bulunamadi." >&2
+		return 1
+	fi
+
+	mergen_safe_mode_confirm
+	echo "[OK] Degisiklikler onaylandi. Watchdog zamanlayicisi iptal edildi."
 	return 0
 }
 
@@ -638,6 +682,9 @@ if [ "${MERGEN_SOURCED:-0}" != "1" ]; then
 			;;
 		rollback)
 			shift; cmd_rollback "$@"
+			;;
+		confirm)
+			shift; cmd_confirm "$@"
 			;;
 		status)
 			shift; cmd_status "$@"
