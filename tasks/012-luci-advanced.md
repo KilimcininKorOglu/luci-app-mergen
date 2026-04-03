@@ -41,7 +41,7 @@ Advanced features of the rules page: drag-and-drop prioritization, bulk operatio
 
 ### T039 - ASN Browser Page
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 3 days
 

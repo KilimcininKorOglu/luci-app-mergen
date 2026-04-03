@@ -255,3 +255,84 @@ msgstr "Etkinlestir"
 
 msgid "Clone"
 msgstr "Kopyala"
+
+msgid "ASN Browser"
+msgstr "ASN Tarayici"
+
+msgid "Search for ASN information, view announced prefixes and create routing rules."
+msgstr "ASN bilgilerini arayın, duyurulan prefixleri goruntuleyip yonlendirme kurallari olusturun."
+
+msgid "ASN number, org name or IP address"
+msgstr "ASN numarasi, kurum adi veya IP adresi"
+
+msgid "Search"
+msgstr "Ara"
+
+msgid "Compare"
+msgstr "Karsilastir"
+
+msgid "Resolving..."
+msgstr "Cozumleniyor..."
+
+msgid "IPv4 Prefixes"
+msgstr "IPv4 Prefixler"
+
+msgid "IPv6 Prefixes"
+msgstr "IPv6 Prefixler"
+
+msgid "Add Rule for This ASN"
+msgstr "Bu ASN Icin Kural Ekle"
+
+msgid "All"
+msgstr "Tumu"
+
+msgid "Prefix"
+msgstr "Prefix"
+
+msgid "Type"
+msgstr "Tip"
+
+msgid "No prefixes found"
+msgstr "Prefix bulunamadi"
+
+msgid "Prev"
+msgstr "Onceki"
+
+msgid "Next"
+msgstr "Sonraki"
+
+msgid "ASN Comparison"
+msgstr "ASN Karsilastirma"
+
+msgid "Clear Comparison"
+msgstr "Karsilastirmayi Temizle"
+
+msgid "Common Prefixes"
+msgstr "Ortak Prefixler"
+
+msgid "No common prefixes found"
+msgstr "Ortak prefix bulunamadi"
+
+msgid "ASN not found or resolve failed"
+msgstr "ASN bulunamadi veya cozumleme basarisiz"
+
+msgid "Error"
+msgstr "Hata"
+
+msgid "Rule name is required"
+msgstr "Kural adi gerekli"
+
+msgid "Interface is required"
+msgstr "Arayuz secimi gerekli"
+
+msgid "Failed to create rule"
+msgstr "Kural olusturulamadi"
+
+msgid "Search for an ASN first"
+msgstr "Once bir ASN arayin"
+
+msgid "is already in comparison"
+msgstr "zaten karsilastirmada"
+
+msgid "Maximum 4 ASNs can be compared"
+msgstr "En fazla 4 ASN karsilastirilabilir"

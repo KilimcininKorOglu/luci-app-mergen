@@ -198,6 +198,133 @@
 	cursor: pointer;
 }
 
+/* ── ASN Browser ── */
+
+.mergen-asn-search {
+	margin-bottom: 1rem;
+}
+
+.mergen-search-row {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+.mergen-search-row input[type="text"] {
+	flex: 1;
+	min-width: 200px;
+	padding: 0.5rem;
+}
+
+.mergen-search-hint {
+	margin-top: 0.5rem;
+	padding: 0.4rem 0.75rem;
+	border-radius: 3px;
+	font-size: 0.9rem;
+}
+
+.mergen-hint-err {
+	background: #f8d7da;
+	color: #721c24;
+}
+
+.mergen-hint-info {
+	background: #d1ecf1;
+	color: #0c5460;
+}
+
+.mergen-loading {
+	padding: 1rem;
+	text-align: center;
+	color: var(--text-color-medium, #666);
+}
+
+.mergen-asn-add-rule {
+	margin: 1rem 0;
+	padding: 0.75rem;
+	background: var(--background-color-low, #f5f5f5);
+	border: 1px solid var(--border-color-medium, #ddd);
+	border-radius: 4px;
+}
+
+.mergen-asn-add-rule h4 {
+	margin: 0 0 0.5rem 0;
+}
+
+.mergen-add-rule-form {
+	display: flex;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.mergen-add-rule-form input,
+.mergen-add-rule-form select {
+	padding: 0.35rem 0.5rem;
+}
+
+.mergen-prefix-filter {
+	display: flex;
+	gap: 1rem;
+	align-items: center;
+	margin: 0.75rem 0;
+}
+
+.mergen-prefix-filter label {
+	cursor: pointer;
+}
+
+.mergen-prefix-page-info {
+	margin-left: auto;
+	font-size: 0.85rem;
+	color: var(--text-color-medium, #666);
+}
+
+.mergen-pagination {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+	justify-content: center;
+	margin: 0.75rem 0;
+}
+
+.mergen-page-num {
+	font-weight: 600;
+}
+
+/* ── Comparison Mode ── */
+
+.mergen-compare-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+	gap: 0.75rem;
+	margin: 0.75rem 0;
+}
+
+.mergen-compare-card {
+	padding: 0.75rem;
+	border: 1px solid var(--border-color-medium, #ddd);
+	border-radius: 4px;
+	background: var(--background-color-high, #fff);
+	position: relative;
+}
+
+.mergen-compare-card h4 {
+	margin: 0 0 0.5rem 0;
+}
+
+.mergen-compare-card .cbi-button-remove {
+	position: absolute;
+	top: 0.25rem;
+	right: 0.25rem;
+	padding: 0.1rem 0.4rem;
+	font-size: 0.75rem;
+}
+
+.mergen-compare-controls {
+	margin-bottom: 0.5rem;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
 	.mergen-cards {

@@ -23,6 +23,9 @@ function index()
 	entry({"admin", "services", "mergen", "advanced"},
 		cbi("mergen-advanced"), _("Advanced"), 40)
 
+	entry({"admin", "services", "mergen", "asn-browser"},
+		template("mergen/asn-browser"), _("ASN Browser"), 25)
+
 	-- RPC endpoints (JSON API)
 	entry({"admin", "services", "mergen", "rpc", "status"},
 		call("rpc_status")).leaf = true
@@ -59,6 +62,12 @@ function index()
 
 	entry({"admin", "services", "mergen", "rpc", "reorder"},
 		post("rpc_reorder")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "resolve"},
+		call("rpc_resolve")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "add_rule"},
+		post("rpc_add_rule")).leaf = true
 end
 
 -- Helper: execute mergen CLI command and return output
@@ -327,5 +336,128 @@ function rpc_reorder()
 	json_response({
 		success = true,
 		output = "Reordered " .. #order .. " rules"
+	})
+end
+
+-- RPC: Resolve ASN prefixes (for ASN Browser)
+function rpc_resolve()
+	local http = require "luci.http"
+	local json = require "luci.jsonc"
+	local asn = http.formvalue("asn") or ""
+	local provider = http.formvalue("provider") or ""
+
+	-- Clean ASN input (strip AS/as prefix)
+	asn = asn:gsub("^[Aa][Ss]", "")
+
+	if asn == "" or not asn:match("^%d+$") then
+		json_response({ success = false, error = "Valid ASN number required" })
+		return
+	end
+
+	-- Build resolve command
+	local cmd = "resolve " .. asn
+	if provider ~= "" then
+		cmd = cmd .. " --provider " .. provider
+	end
+
+	local output = mergen_exec(cmd)
+
+	-- Parse the output into structured data
+	local result = {
+		asn = tonumber(asn),
+		raw = output,
+		prefixes_v4 = {},
+		prefixes_v6 = {},
+		provider = "",
+		total_v4 = 0,
+		total_v6 = 0
+	}
+
+	-- Extract provider name
+	local prov = output:match("Provider:%s*(.-)%s*\n")
+	if prov then result.provider = prov end
+
+	-- Extract IPv4 prefixes
+	local in_v4 = false
+	local in_v6 = false
+	for line in output:gmatch("[^\n]+") do
+		if line:match("IPv4 Prefix") then
+			in_v4 = true
+			in_v6 = false
+		elseif line:match("IPv6 Prefix") then
+			in_v4 = false
+			in_v6 = true
+		elseif line:match("^%s*Toplam") or line:match("^%s*Total") then
+			in_v4 = false
+			in_v6 = false
+		else
+			local prefix = line:match("^%s*(%S+/%d+)")
+			if prefix then
+				if in_v4 then
+					result.prefixes_v4[#result.prefixes_v4 + 1] = prefix
+				elseif in_v6 then
+					result.prefixes_v6[#result.prefixes_v6 + 1] = prefix
+				end
+			end
+		end
+	end
+
+	result.total_v4 = #result.prefixes_v4
+	result.total_v6 = #result.prefixes_v6
+
+	json_response({
+		success = true,
+		result = result
+	})
+end
+
+-- RPC: Quick add rule from ASN Browser
+function rpc_add_rule()
+	local http = require "luci.http"
+	local uci = require "luci.model.uci".cursor()
+	local name = http.formvalue("name") or ""
+	local asn = http.formvalue("asn") or ""
+	local via = http.formvalue("via") or ""
+
+	if name == "" or asn == "" or via == "" then
+		json_response({ success = false, error = "Name, ASN and interface required" })
+		return
+	end
+
+	-- Validate name
+	if not name:match("^[a-zA-Z0-9_-]+$") or #name > 32 then
+		json_response({ success = false, error = "Invalid rule name format" })
+		return
+	end
+
+	-- Check name doesn't exist
+	local exists = false
+	uci:foreach("mergen", "rule", function(s)
+		if s[".name"] == name then
+			exists = true
+		end
+	end)
+
+	if exists then
+		json_response({ success = false, error = "Rule name already exists" })
+		return
+	end
+
+	-- Clean ASN
+	asn = asn:gsub("^[Aa][Ss]", "")
+
+	-- Create the rule
+	uci:section("mergen", "rule", name)
+	uci:set("mergen", name, "enabled", "1")
+	uci:set("mergen", name, "name", name)
+	uci:set("mergen", name, "type", "asn")
+	uci:set("mergen", name, "asn", asn)
+	uci:set("mergen", name, "via", via)
+	uci:set("mergen", name, "priority", "100")
+	uci:commit("mergen")
+
+	json_response({
+		success = true,
+		output = "Rule created: " .. name .. " (AS" .. asn .. " via " .. via .. ")"
 	})
 end

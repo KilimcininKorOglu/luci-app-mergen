@@ -255,3 +255,84 @@ msgstr "Enable"
 
 msgid "Clone"
 msgstr "Clone"
+
+msgid "ASN Browser"
+msgstr "ASN Browser"
+
+msgid "Search for ASN information, view announced prefixes and create routing rules."
+msgstr "Search for ASN information, view announced prefixes and create routing rules."
+
+msgid "ASN number, org name or IP address"
+msgstr "ASN number, org name or IP address"
+
+msgid "Search"
+msgstr "Search"
+
+msgid "Compare"
+msgstr "Compare"
+
+msgid "Resolving..."
+msgstr "Resolving..."
+
+msgid "IPv4 Prefixes"
+msgstr "IPv4 Prefixes"
+
+msgid "IPv6 Prefixes"
+msgstr "IPv6 Prefixes"
+
+msgid "Add Rule for This ASN"
+msgstr "Add Rule for This ASN"
+
+msgid "All"
+msgstr "All"
+
+msgid "Prefix"
+msgstr "Prefix"
+
+msgid "Type"
+msgstr "Type"
+
+msgid "No prefixes found"
+msgstr "No prefixes found"
+
+msgid "Prev"
+msgstr "Prev"
+
+msgid "Next"
+msgstr "Next"
+
+msgid "ASN Comparison"
+msgstr "ASN Comparison"
+
+msgid "Clear Comparison"
+msgstr "Clear Comparison"
+
+msgid "Common Prefixes"
+msgstr "Common Prefixes"
+
+msgid "No common prefixes found"
+msgstr "No common prefixes found"
+
+msgid "ASN not found or resolve failed"
+msgstr "ASN not found or resolve failed"
+
+msgid "Error"
+msgstr "Error"
+
+msgid "Rule name is required"
+msgstr "Rule name is required"
+
+msgid "Interface is required"
+msgstr "Interface is required"
+
+msgid "Failed to create rule"
+msgstr "Failed to create rule"
+
+msgid "Search for an ASN first"
+msgstr "Search for an ASN first"
+
+msgid "is already in comparison"
+msgstr "is already in comparison"
+
+msgid "Maximum 4 ASNs can be compared"
+msgstr "Maximum 4 ASNs can be compared"
