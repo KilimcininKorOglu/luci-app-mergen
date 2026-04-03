@@ -237,3 +237,21 @@ msgstr "Validate Config"
 
 msgid "This will remove all Mergen routes and sets. Continue?"
 msgstr "This will remove all Mergen routes and sets. Continue?"
+
+msgid "Export JSON"
+msgstr "Export JSON"
+
+msgid "Export Selected"
+msgstr "Export Selected"
+
+msgid "selected"
+msgstr "selected"
+
+msgid "Disable"
+msgstr "Disable"
+
+msgid "Enable"
+msgstr "Enable"
+
+msgid "Clone"
+msgstr "Clone"

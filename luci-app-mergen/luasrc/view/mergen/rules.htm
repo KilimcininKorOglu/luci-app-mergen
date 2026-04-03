@@ -28,10 +28,37 @@
 	</div>
 </div>
 
-<div class="mergen-actions" style="margin-bottom:1rem">
+<div class="mergen-actions" style="margin-bottom:0.75rem">
 	<button class="cbi-button cbi-button-apply mergen-btn-apply"
 		onclick="MergenUI.applyRules(); return false;">
 		<%:Apply All%>
+	</button>
+	<button class="cbi-button cbi-button-neutral"
+		onclick="MergenUI.exportRules(); return false;">
+		<%:Export JSON%>
+	</button>
+</div>
+
+<!-- Bulk operations toolbar (hidden until checkboxes selected) -->
+<div id="mergen-bulk-toolbar" class="mergen-bulk-toolbar">
+	<span class="bulk-count">
+		<span id="mergen-bulk-count">0</span> <%:selected%>
+	</span>
+	<button class="cbi-button cbi-button-apply"
+		onclick="MergenUI.bulkAction('enable'); return false;">
+		<%:Enable%>
+	</button>
+	<button class="cbi-button cbi-button-neutral"
+		onclick="MergenUI.bulkAction('disable'); return false;">
+		<%:Disable%>
+	</button>
+	<button class="cbi-button cbi-button-remove"
+		onclick="MergenUI.bulkAction('delete'); return false;">
+		<%:Delete%>
+	</button>
+	<button class="cbi-button cbi-button-neutral"
+		onclick="MergenUI.exportRules(); return false;">
+		<%:Export Selected%>
 	</button>
 </div>
 
@@ -55,7 +82,6 @@ document.addEventListener('DOMContentLoaded', function() {
 	var typeSelects = document.querySelectorAll('select[id*=".type"]');
 	for (var j = 0; j < typeSelects.length; j++) {
 		typeSelects[j].addEventListener('change', function() {
-			/* CBI handles depends() visibility, this is for UX feedback */
 			var row = this.closest('tr');
 			if (row) {
 				row.style.transition = 'background 0.3s';

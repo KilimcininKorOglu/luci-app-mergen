@@ -132,6 +132,72 @@
 	background: #dc3545;
 }
 
+/* ── Drag-and-drop ── */
+
+.mergen-draggable {
+	cursor: grab;
+}
+
+.mergen-draggable:active {
+	cursor: grabbing;
+}
+
+.mergen-dragging {
+	opacity: 0.4;
+	background: var(--background-color-low, #f0f0f0) !important;
+}
+
+.mergen-drop-above {
+	border-top: 2px solid #0078d4 !important;
+}
+
+.mergen-drop-below {
+	border-bottom: 2px solid #0078d4 !important;
+}
+
+/* ── Bulk operations toolbar ── */
+
+.mergen-bulk-toolbar {
+	display: none;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.5rem 0.75rem;
+	margin-bottom: 0.75rem;
+	background: #e8f0fe;
+	border: 1px solid #c2d7f2;
+	border-radius: 4px;
+	flex-wrap: wrap;
+}
+
+.mergen-bulk-toolbar .bulk-count {
+	font-weight: 600;
+	margin-right: 0.5rem;
+	white-space: nowrap;
+}
+
+.mergen-bulk-toolbar .cbi-button {
+	min-width: auto;
+	padding: 0.25rem 0.75rem;
+	font-size: 0.85rem;
+}
+
+/* ── Clone button ── */
+
+.mergen-btn-clone {
+	font-size: 0.8rem;
+	padding: 0.15rem 0.5rem;
+	margin-left: 0.25rem;
+}
+
+/* ── Rule checkbox column ── */
+
+.mergen-rule-cb,
+#mergen-select-all {
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
 	.mergen-cards {

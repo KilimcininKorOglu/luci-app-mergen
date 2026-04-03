@@ -10,7 +10,7 @@ Full-featured version of all 7 LuCI pages: drag-and-drop, bulk operations, ASN b
 
 ### T038 - Rules Page Advanced (Drag-Drop, Bulk Ops)
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 2 days
 

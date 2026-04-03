@@ -237,3 +237,21 @@ msgstr "Yapilandirmayi Dogrula"
 
 msgid "This will remove all Mergen routes and sets. Continue?"
 msgstr "Bu tum Mergen rotalarini ve setlerini silecek. Devam edilsin mi?"
+
+msgid "Export JSON"
+msgstr "JSON Disa Aktar"
+
+msgid "Export Selected"
+msgstr "Secilenleri Disa Aktar"
+
+msgid "selected"
+msgstr "secili"
+
+msgid "Disable"
+msgstr "Devre Disi Birak"
+
+msgid "Enable"
+msgstr "Etkinlestir"
+
+msgid "Clone"
+msgstr "Kopyala"

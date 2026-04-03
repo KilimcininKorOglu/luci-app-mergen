@@ -47,6 +47,18 @@ function index()
 
 	entry({"admin", "services", "mergen", "rpc", "validate"},
 		call("rpc_validate")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "clone"},
+		post("rpc_clone")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "bulk"},
+		post("rpc_bulk")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "export_rules"},
+		call("rpc_export_rules")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "reorder"},
+		post("rpc_reorder")).leaf = true
 end
 
 -- Helper: execute mergen CLI command and return output
@@ -153,5 +165,167 @@ function rpc_validate()
 	json_response({
 		success = true,
 		output = output
+	})
+end
+
+-- RPC: Clone a rule
+function rpc_clone()
+	local http = require "luci.http"
+	local uci = require "luci.model.uci".cursor()
+	local source = http.formvalue("source")
+	local new_name = http.formvalue("new_name")
+
+	if not source or source == "" then
+		json_response({ success = false, error = "Source rule name required" })
+		return
+	end
+	if not new_name or new_name == "" then
+		json_response({ success = false, error = "New rule name required" })
+		return
+	end
+
+	-- Validate new_name format
+	if not new_name:match("^[a-zA-Z0-9_-]+$") or #new_name > 32 then
+		json_response({ success = false, error = "Invalid rule name format" })
+		return
+	end
+
+	-- Check source exists
+	local src_data = nil
+	uci:foreach("mergen", "rule", function(s)
+		if s[".name"] == source then
+			src_data = s
+		end
+	end)
+
+	if not src_data then
+		json_response({ success = false, error = "Source rule not found" })
+		return
+	end
+
+	-- Check new_name doesn't conflict
+	local exists = false
+	uci:foreach("mergen", "rule", function(s)
+		if s[".name"] == new_name then
+			exists = true
+		end
+	end)
+
+	if exists then
+		json_response({ success = false, error = "Rule name already exists" })
+		return
+	end
+
+	-- Create new section with same values
+	uci:section("mergen", "rule", new_name)
+	local copy_keys = { "enabled", "name", "type", "asn", "ip", "via", "priority", "tag" }
+	for _, key in ipairs(copy_keys) do
+		if src_data[key] then
+			uci:set("mergen", new_name, key, src_data[key])
+		end
+	end
+	-- Override name field to the new name
+	uci:set("mergen", new_name, "name", new_name)
+	uci:commit("mergen")
+
+	json_response({
+		success = true,
+		output = "Rule cloned: " .. source .. " -> " .. new_name
+	})
+end
+
+-- RPC: Bulk operations (enable/disable/delete)
+function rpc_bulk()
+	local http = require "luci.http"
+	local uci = require "luci.model.uci".cursor()
+	local action = http.formvalue("action")
+	local rules_str = http.formvalue("rules") or ""
+
+	if not action or action == "" then
+		json_response({ success = false, error = "Action required" })
+		return
+	end
+
+	-- Parse comma-separated rule names
+	local rules = {}
+	for name in rules_str:gmatch("[^,]+") do
+		name = name:match("^%s*(.-)%s*$") -- trim
+		if name ~= "" then
+			rules[#rules + 1] = name
+		end
+	end
+
+	if #rules == 0 then
+		json_response({ success = false, error = "No rules specified" })
+		return
+	end
+
+	local count = 0
+	for _, rule_name in ipairs(rules) do
+		if action == "enable" then
+			uci:set("mergen", rule_name, "enabled", "1")
+			count = count + 1
+		elseif action == "disable" then
+			uci:set("mergen", rule_name, "enabled", "0")
+			count = count + 1
+		elseif action == "delete" then
+			uci:delete("mergen", rule_name)
+			count = count + 1
+		end
+	end
+
+	if count > 0 then
+		uci:commit("mergen")
+	end
+
+	json_response({
+		success = true,
+		output = action .. ": " .. count .. " rules affected"
+	})
+end
+
+-- RPC: Export rules as JSON
+function rpc_export_rules()
+	local output = mergen_exec("export --format json")
+	local json = require "luci.jsonc"
+	local data = json.parse(output)
+	if data then
+		json_response({
+			success = true,
+			rules = data.rules or data
+		})
+	else
+		json_response({
+			success = false,
+			error = "Failed to export rules"
+		})
+	end
+end
+
+-- RPC: Reorder rules (update priorities)
+function rpc_reorder()
+	local http = require "luci.http"
+	local json = require "luci.jsonc"
+	local uci = require "luci.model.uci".cursor()
+	local order_str = http.formvalue("order") or ""
+
+	-- Parse JSON array of {name, priority} objects
+	local order = json.parse(order_str)
+	if not order or type(order) ~= "table" then
+		json_response({ success = false, error = "Invalid order data" })
+		return
+	end
+
+	for _, item in ipairs(order) do
+		if item.name and item.priority then
+			uci:set("mergen", item.name, "priority",
+				tostring(item.priority))
+		end
+	end
+	uci:commit("mergen")
+
+	json_response({
+		success = true,
+		output = "Reordered " .. #order .. " rules"
 	})
 end
