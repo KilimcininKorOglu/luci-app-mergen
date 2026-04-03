@@ -1,7 +1,7 @@
 #!/bin/sh
 # Mergen Route Manager
-# Policy routing (ip rule/route), nftables/ipset set management, snapshots
-# Implemented in T008 (Policy Routing), T014 (Rollback), T017 (nftables)
+# Policy routing (ip rule/route), nftables set management, snapshots
+# Implemented in T008 (Policy Routing), T014 (Rollback), T015 (Atomic), T017 (nftables)
 
 # Source core.sh if not already loaded (allows test override)
 if ! type mergen_log >/dev/null 2>&1; then
@@ -186,12 +186,30 @@ ${MERGEN_RESOLVE_RESULT_V4}"
 				errors=$((errors + 1))
 			fi
 		fi
-
-		# Add ip rule: direct traffic to this prefix through the custom table
-		ip rule add to "$line" lookup "$table_num" priority "$priority" 2>/dev/null
 	done <<EOF
 $prefix_list
 EOF
+
+	# nftables set-based routing (efficient for large prefix lists)
+	if mergen_nft_available; then
+		# Create set, add prefixes, add fwmark rule
+		if mergen_nft_set_create "$rule_name"; then
+			if mergen_nft_set_add "$rule_name" "$prefix_list"; then
+				# Use table_num as fwmark (unique per rule)
+				mergen_nft_rule_add "$rule_name" "$table_num"
+				# Single ip rule for fwmark-based routing
+				ip rule add fwmark "$table_num" lookup "$table_num" priority "$priority" 2>/dev/null
+			fi
+		fi
+	else
+		# Fallback: individual ip rules per prefix (less efficient)
+		while IFS= read -r line; do
+			[ -z "$line" ] && continue
+			ip rule add to "$line" lookup "$table_num" priority "$priority" 2>/dev/null
+		done <<IPRULEEOF
+$prefix_list
+IPRULEEOF
+	fi
 
 	mergen_log "info" "Route" "Kural '${rule_name}' uygulandı (tablo: ${table_num}, prefix: ${prefix_count})"
 	return 0
@@ -218,7 +236,10 @@ mergen_route_remove() {
 
 	mergen_log "info" "Route" "Kural '${rule_name}' kaldırılıyor (tablo: ${table_num})"
 
-	# Remove all ip rules pointing to this table
+	# Remove nftables set and fwmark rule for this rule
+	mergen_nft_set_destroy "$rule_name"
+
+	# Remove all ip rules pointing to this table (including fwmark rules)
 	# Loop until no more rules exist for this table
 	local max_attempts=1000
 	local attempts=0
@@ -358,6 +379,9 @@ mergen_route_remove_all() {
 
 	mergen_list_rules _remove_all_cb
 
+	# Clean up entire nftables table (catches any orphaned sets)
+	mergen_nft_cleanup
+
 	mergen_log "info" "Route" "Tüm kurallar kaldırıldı."
 	return 0
 }
@@ -440,6 +464,9 @@ mergen_snapshot_create() {
 		cp /etc/config/mergen "${MERGEN_SNAPSHOT_DIR}/uci.backup" 2>/dev/null
 	fi
 
+	# Save nftables state
+	mergen_nft_snapshot_save
+
 	# Write snapshot metadata
 	cat > "${MERGEN_SNAPSHOT_DIR}/meta" <<METAEOF
 timestamp=$(date +%s)
@@ -508,6 +535,9 @@ mergen_snapshot_restore() {
 			done < "${MERGEN_SNAPSHOT_DIR}/rules.save"
 		}
 	fi
+
+	# Step 4: Restore nftables state
+	mergen_nft_snapshot_restore
 
 	mergen_log "info" "Snapshot" "Routing durumu geri yuklendi."
 	return 0
@@ -611,4 +641,304 @@ mergen_safe_mode_expired() {
 	elapsed=$((now - timestamp))
 
 	[ "$elapsed" -ge "$timeout" ]
+}
+
+# ── nftables Set Management ──────────────────────────────────
+
+MERGEN_NFT_TABLE="mergen"
+MERGEN_NFT_CHAIN="prerouting"
+MERGEN_NFT_AVAILABLE=""
+
+# Check if nftables (nft) command is available
+# Caches result in MERGEN_NFT_AVAILABLE
+# Returns 0 if available, 1 otherwise
+mergen_nft_available() {
+	if [ -z "$MERGEN_NFT_AVAILABLE" ]; then
+		if command -v nft >/dev/null 2>&1; then
+			MERGEN_NFT_AVAILABLE="1"
+		else
+			MERGEN_NFT_AVAILABLE="0"
+		fi
+	fi
+	[ "$MERGEN_NFT_AVAILABLE" = "1" ]
+}
+
+# Initialize the mergen nftables table and prerouting chain
+# Creates if not already present
+# Returns 0 on success, 1 on failure
+mergen_nft_init() {
+	if ! mergen_nft_available; then
+		mergen_log "error" "NFT" "[!] Hata: nftables (nft) komutu bulunamadı."
+		return 1
+	fi
+
+	# Create table (idempotent — no error if exists)
+	nft add table inet "$MERGEN_NFT_TABLE" 2>/dev/null
+
+	# Create prerouting chain with priority -150 (before conntrack)
+	# Using 'add' — if chain exists, nft silently succeeds
+	nft add chain inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" \
+		'{ type filter hook prerouting priority -150 ; }' 2>/dev/null
+
+	if ! nft list table inet "$MERGEN_NFT_TABLE" >/dev/null 2>&1; then
+		mergen_log "error" "NFT" "[!] Hata: nftables tablosu oluşturulamadı."
+		return 1
+	fi
+
+	mergen_log "debug" "NFT" "nftables tablosu hazır: inet ${MERGEN_NFT_TABLE}"
+	return 0
+}
+
+# Create an nftables set for a rule
+# Usage: mergen_nft_set_create <rule_name>
+# Returns 0 on success, 1 on failure
+mergen_nft_set_create() {
+	local rule_name="$1"
+	local set_name="mergen_${rule_name}"
+
+	if [ -z "$rule_name" ]; then
+		mergen_log "error" "NFT" "[!] Hata: Kural adı belirtilmeli."
+		return 1
+	fi
+
+	if ! mergen_nft_available; then
+		mergen_log "error" "NFT" "[!] Hata: nftables (nft) komutu bulunamadı."
+		return 1
+	fi
+
+	# Ensure table exists
+	mergen_nft_init || return 1
+
+	# Create IPv4 set with interval flag (for CIDR ranges)
+	if ! nft add set inet "$MERGEN_NFT_TABLE" "$set_name" \
+		'{ type ipv4_addr ; flags interval ; }' 2>/dev/null; then
+		# Set might already exist — check
+		if nft list set inet "$MERGEN_NFT_TABLE" "$set_name" >/dev/null 2>&1; then
+			mergen_log "debug" "NFT" "Set zaten mevcut: ${set_name}"
+			return 0
+		fi
+		mergen_log "error" "NFT" "[!] Hata: nftables set oluşturulamadı: ${set_name}"
+		return 1
+	fi
+
+	mergen_log "debug" "NFT" "Set oluşturuldu: ${set_name}"
+	return 0
+}
+
+# Add prefixes to an nftables set (bulk via batch file)
+# Usage: mergen_nft_set_add <rule_name> <prefix_list>
+#   prefix_list: newline-separated CIDR prefixes
+# Returns 0 on success, 1 on failure
+mergen_nft_set_add() {
+	local rule_name="$1"
+	local prefix_list="$2"
+	local set_name="mergen_${rule_name}"
+
+	if [ -z "$rule_name" ] || [ -z "$prefix_list" ]; then
+		mergen_log "error" "NFT" "[!] Hata: Kural adı ve prefix listesi gerekli."
+		return 1
+	fi
+
+	# Build batch file for nft -f (much faster than individual add commands)
+	local batch_file="${MERGEN_TMP:-/tmp/mergen}/nft_batch_${rule_name}.nft"
+	local elements_file="${MERGEN_TMP:-/tmp/mergen}/nft_elements_${rule_name}.tmp"
+	[ -d "${MERGEN_TMP:-/tmp/mergen}" ] || mkdir -p "${MERGEN_TMP:-/tmp/mergen}"
+
+	# Start batch with flush
+	printf 'flush set inet %s %s\n' "$MERGEN_NFT_TABLE" "$set_name" > "$batch_file"
+
+	# Write clean prefix list to temp file to avoid subshell variable loss
+	echo "$prefix_list" | sed '/^$/d' > "$elements_file"
+
+	# Chunk prefixes into groups of 200 per add element command
+	local chunk="" chunk_count=0
+	while IFS= read -r prefix; do
+		if [ -z "$chunk" ]; then
+			chunk="$prefix"
+		else
+			chunk="${chunk}, ${prefix}"
+		fi
+		chunk_count=$((chunk_count + 1))
+
+		if [ "$chunk_count" -ge 200 ]; then
+			printf 'add element inet %s %s { %s }\n' \
+				"$MERGEN_NFT_TABLE" "$set_name" "$chunk" >> "$batch_file"
+			chunk=""
+			chunk_count=0
+		fi
+	done < "$elements_file"
+
+	# Remaining chunk
+	if [ -n "$chunk" ]; then
+		printf 'add element inet %s %s { %s }\n' \
+			"$MERGEN_NFT_TABLE" "$set_name" "$chunk" >> "$batch_file"
+	fi
+
+	rm -f "$elements_file"
+
+	# Execute batch
+	if ! nft -f "$batch_file" 2>/dev/null; then
+		mergen_log "error" "NFT" "[!] Hata: Prefix'ler set'e eklenemedi: ${set_name}"
+		rm -f "$batch_file"
+		return 1
+	fi
+
+	rm -f "$batch_file"
+
+	local count
+	count="$(echo "$prefix_list" | sed '/^$/d' | wc -l | tr -d ' ')"
+	mergen_log "info" "NFT" "Set '${set_name}' güncellendi: ${count} prefix"
+	return 0
+}
+
+# Flush (clear) all elements from an nftables set
+# Usage: mergen_nft_set_flush <rule_name>
+# Returns 0 on success, 1 on failure
+mergen_nft_set_flush() {
+	local rule_name="$1"
+	local set_name="mergen_${rule_name}"
+
+	if ! mergen_nft_available; then
+		return 1
+	fi
+
+	nft flush set inet "$MERGEN_NFT_TABLE" "$set_name" 2>/dev/null
+	return $?
+}
+
+# Destroy an nftables set and its associated fwmark rule
+# Usage: mergen_nft_set_destroy <rule_name>
+# Returns 0 on success, 1 on failure
+mergen_nft_set_destroy() {
+	local rule_name="$1"
+	local set_name="mergen_${rule_name}"
+
+	if ! mergen_nft_available; then
+		return 0
+	fi
+
+	# First remove the fwmark rule referencing this set
+	# Find the rule handle by grepping for @set_name
+	local handle
+	handle="$(nft -a list chain inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" 2>/dev/null | \
+		grep "@${set_name}" | sed -n 's/.*# handle \([0-9]*\)/\1/p')"
+
+	if [ -n "$handle" ]; then
+		local h
+		for h in $handle; do
+			nft delete rule inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" handle "$h" 2>/dev/null
+		done
+	fi
+
+	# Delete the set
+	nft delete set inet "$MERGEN_NFT_TABLE" "$set_name" 2>/dev/null
+
+	mergen_log "debug" "NFT" "Set kaldırıldı: ${set_name}"
+	return 0
+}
+
+# Add a fwmark rule for a set
+# Usage: mergen_nft_rule_add <rule_name> <fwmark>
+# Creates: ip daddr @mergen_{rule_name} meta mark set {fwmark}
+# Returns 0 on success, 1 on failure
+mergen_nft_rule_add() {
+	local rule_name="$1"
+	local fwmark="$2"
+	local set_name="mergen_${rule_name}"
+
+	if [ -z "$rule_name" ] || [ -z "$fwmark" ]; then
+		mergen_log "error" "NFT" "[!] Hata: Kural adı ve fwmark değeri gerekli."
+		return 1
+	fi
+
+	if ! mergen_nft_available; then
+		mergen_log "error" "NFT" "[!] Hata: nftables (nft) komutu bulunamadı."
+		return 1
+	fi
+
+	# Check if a rule for this set already exists — avoid duplicates
+	if nft -a list chain inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" 2>/dev/null | \
+		grep -q "@${set_name}"; then
+		mergen_log "debug" "NFT" "fwmark kuralı zaten mevcut: ${set_name}"
+		return 0
+	fi
+
+	if ! nft add rule inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" \
+		ip daddr "@${set_name}" meta mark set "$fwmark" 2>/dev/null; then
+		mergen_log "error" "NFT" "[!] Hata: fwmark kuralı eklenemedi: ${set_name} -> ${fwmark}"
+		return 1
+	fi
+
+	mergen_log "debug" "NFT" "fwmark kuralı eklendi: @${set_name} -> mark ${fwmark}"
+	return 0
+}
+
+# Clean up all mergen nftables resources (table, chains, sets)
+# Used during full remove or rollback
+# Returns 0 always
+mergen_nft_cleanup() {
+	if ! mergen_nft_available; then
+		return 0
+	fi
+
+	nft delete table inet "$MERGEN_NFT_TABLE" 2>/dev/null
+	mergen_log "debug" "NFT" "nftables tablosu temizlendi: inet ${MERGEN_NFT_TABLE}"
+	return 0
+}
+
+# Get the nftables set element count for a rule
+# Usage: mergen_nft_set_count <rule_name>
+# Prints the count, returns 0 if set exists, 1 otherwise
+mergen_nft_set_count() {
+	local rule_name="$1"
+	local set_name="mergen_${rule_name}"
+
+	if ! mergen_nft_available; then
+		echo "0"
+		return 1
+	fi
+
+	local output
+	output="$(nft list set inet "$MERGEN_NFT_TABLE" "$set_name" 2>/dev/null)"
+	if [ -z "$output" ]; then
+		echo "0"
+		return 1
+	fi
+
+	# Count elements: each prefix is a separate entry
+	local count
+	count="$(echo "$output" | grep -c '[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+')"
+	echo "${count:-0}"
+	return 0
+}
+
+# Save nftables state to snapshot directory
+# Called by mergen_snapshot_create
+mergen_nft_snapshot_save() {
+	if ! mergen_nft_available; then
+		return 0
+	fi
+
+	if nft list table inet "$MERGEN_NFT_TABLE" >/dev/null 2>&1; then
+		nft list table inet "$MERGEN_NFT_TABLE" > "${MERGEN_SNAPSHOT_DIR}/nftsets.save" 2>/dev/null
+		mergen_log "debug" "NFT" "nftables durumu snapshot'a kaydedildi."
+	fi
+	return 0
+}
+
+# Restore nftables state from snapshot
+# Called by mergen_snapshot_restore
+mergen_nft_snapshot_restore() {
+	if ! mergen_nft_available; then
+		return 0
+	fi
+
+	if [ -f "${MERGEN_SNAPSHOT_DIR}/nftsets.save" ]; then
+		# Delete existing table first
+		nft delete table inet "$MERGEN_NFT_TABLE" 2>/dev/null
+		# Restore from snapshot (nft list table output is valid nft input)
+		nft -f "${MERGEN_SNAPSHOT_DIR}/nftsets.save" 2>/dev/null
+		mergen_log "debug" "NFT" "nftables durumu snapshot'tan geri yüklendi."
+	fi
+	return 0
 }
