@@ -95,6 +95,20 @@ var MergenUI = {
 		});
 	},
 
+	/* Restart daemon */
+	restartDaemon: function() {
+		var btn = document.querySelector('.mergen-btn-restart');
+		if (btn) btn.disabled = true;
+
+		return this.rpcCall('restart', {}).then(function(data) {
+			if (btn) btn.disabled = false;
+			location.reload();
+		}).catch(function(err) {
+			if (btn) btn.disabled = false;
+			alert('Restart failed: ' + err.message);
+		});
+	},
+
 	/* Toggle rule state */
 	toggleRule: function(name, action) {
 		return this.rpcCall('toggle', {
@@ -134,6 +148,16 @@ var MergenUI = {
 			updateBtn.addEventListener('click', function(e) {
 				e.preventDefault();
 				self.updatePrefixes();
+			});
+		}
+
+		var restartBtn = document.querySelector('.mergen-btn-restart');
+		if (restartBtn) {
+			restartBtn.addEventListener('click', function(e) {
+				e.preventDefault();
+				if (confirm('Restart Mergen daemon?')) {
+					self.restartDaemon();
+				}
 			});
 		}
 

@@ -117,3 +117,33 @@ msgstr "Paralel"
 
 msgid "Cache Only"
 msgstr "Sadece Onbellek"
+
+msgid "Restart Daemon"
+msgstr "Servisi Yeniden Baslat"
+
+msgid "Next Sync"
+msgstr "Sonraki Senkronizasyon"
+
+msgid "Total Prefixes"
+msgstr "Toplam Prefix"
+
+msgid "No rules configured yet."
+msgstr "Henuz kural tanimlanmamis."
+
+msgid "No recent operations"
+msgstr "Son islem yok"
+
+msgid "View all logs"
+msgstr "Tum loglari gor"
+
+msgid "active"
+msgstr "aktif"
+
+msgid "disabled"
+msgstr "pasif"
+
+msgid "details"
+msgstr "detay"
+
+msgid "Log Level"
+msgstr "Log Seviyesi"

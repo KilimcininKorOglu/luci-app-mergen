@@ -8,31 +8,77 @@
 
 <%
 	local util = require "luci.util"
+	local uci = require "luci.model.uci".cursor()
+	local sys = require "luci.sys"
+	local json = require "luci.jsonc"
+
+	-- Execute mergen commands for status data
 	local status_raw = util.exec("/usr/bin/mergen status 2>/dev/null") or ""
+	local rules_json_raw = util.exec("/usr/bin/mergen export --format json 2>/dev/null") or ""
 	local version_raw = util.exec("/usr/bin/mergen version 2>/dev/null") or ""
 
 	-- Parse daemon status
 	local daemon_running = status_raw:match("Durum:%s*(%S+)") or "unknown"
-	local rule_count = status_raw:match("Toplam Kural:%s*(%d+)") or "0"
-	local active_count = status_raw:match("Aktif:%s*(%d+)") or "0"
+	local rule_total = status_raw:match("Toplam Kural:%s*(%d+)") or "0"
+	local rule_active = status_raw:match("Aktif:%s*(%d+)") or "0"
+	local rule_disabled = status_raw:match("Pasif:%s*(%d+)") or "0"
+
+	-- Parse prefix counts from status output
+	local prefix_v4 = status_raw:match("IPv4 Prefix:%s*(%d+)") or "0"
+	local prefix_v6 = status_raw:match("IPv6 Prefix:%s*(%d+)") or "0"
+
+	-- Parse rules from JSON export
+	local rules_data = json.parse(rules_json_raw) or {}
+	local rules = rules_data.rules or {}
 
 	-- Parse last sync
 	local last_sync = "N/A"
+	local last_sync_ago = ""
 	local sync_file = io.open("/tmp/mergen/last_sync", "r")
 	if sync_file then
 		local ts = sync_file:read("*l")
 		sync_file:close()
 		if ts then
-			last_sync = os.date("%Y-%m-%d %H:%M", tonumber(ts))
+			local ts_num = tonumber(ts)
+			last_sync = os.date("%Y-%m-%d %H:%M", ts_num)
+			local diff = os.time() - ts_num
+			if diff < 60 then
+				last_sync_ago = tostring(diff) .. " sn once"
+			elseif diff < 3600 then
+				last_sync_ago = tostring(math.floor(diff / 60)) .. " dk once"
+			elseif diff < 86400 then
+				last_sync_ago = tostring(math.floor(diff / 3600)) .. " saat once"
+			else
+				last_sync_ago = tostring(math.floor(diff / 86400)) .. " gun once"
+			end
 		end
 	end
 
-	-- Status badge
+	-- Calculate next sync
+	local next_sync = "N/A"
+	local update_interval = uci:get("mergen", "global", "update_interval") or "86400"
+	if sync_file and last_sync ~= "N/A" then
+		-- Re-read sync file for next calc
+		local sf2 = io.open("/tmp/mergen/last_sync", "r")
+		if sf2 then
+			local ts2 = sf2:read("*l")
+			sf2:close()
+			if ts2 then
+				local next_ts = tonumber(ts2) + tonumber(update_interval)
+				next_sync = os.date("%Y-%m-%d %H:%M", next_ts)
+			end
+		end
+	end
+
+	-- Daemon status badge
 	local status_badge = "mergen-badge-off"
-	local status_text = "Stopped"
+	local status_text = translate("Stopped")
 	if daemon_running == "aktif" or daemon_running == "calisiyor" then
 		status_badge = "mergen-badge-ok"
-		status_text = "Running"
+		status_text = translate("Running")
+	elseif daemon_running == "hata" then
+		status_badge = "mergen-badge-err"
+		status_text = "Error"
 	end
 %>
 
@@ -47,17 +93,31 @@
 
 	<div class="mergen-card">
 		<h4><%:Total Rules%></h4>
-		<div class="value"><%=rule_count%></div>
+		<div class="value"><%=rule_total%></div>
+		<div style="font-size:0.8rem;color:#666">
+			<%=rule_active%> <%:active%> / <%=rule_disabled%> <%:disabled%>
+		</div>
 	</div>
 
 	<div class="mergen-card">
-		<h4><%:Active Rules%></h4>
-		<div class="value"><%=active_count%></div>
+		<h4><%:Total Prefixes%></h4>
+		<div class="value"><%=prefix_v4%></div>
+		<div style="font-size:0.8rem;color:#666">
+			IPv4: <%=prefix_v4%> / IPv6: <%=prefix_v6%>
+		</div>
 	</div>
 
 	<div class="mergen-card">
 		<h4><%:Last Sync%></h4>
 		<div class="value" style="font-size:1rem"><%=last_sync%></div>
+		<% if last_sync_ago ~= "" then %>
+		<div style="font-size:0.8rem;color:#666"><%=last_sync_ago%></div>
+		<% end %>
+	</div>
+
+	<div class="mergen-card">
+		<h4><%:Next Sync%></h4>
+		<div class="value" style="font-size:1rem"><%=next_sync%></div>
 	</div>
 </div>
 
@@ -65,22 +125,106 @@
 <div class="mergen-actions">
 	<button class="cbi-button cbi-button-apply mergen-btn-apply"><%:Apply All%></button>
 	<button class="cbi-button cbi-button-action mergen-btn-update"><%:Update Prefixes%></button>
+	<button class="cbi-button cbi-button-reset mergen-btn-restart"><%:Restart Daemon%></button>
 </div>
 
-<!-- Status Output -->
-<h3><%:Daemon Status%></h3>
-<div class="mergen-log" id="mergen-status-output">
-<%=status_raw%>
+<!-- Active Rules Summary Table -->
+<h3><%:Active Rules%></h3>
+<div id="mergen-rules-table-wrap">
+<% if #rules > 0 then %>
+<table class="mergen-rules-table">
+	<thead>
+		<tr>
+			<th><%:Rule Name%></th>
+			<th><%:Rule Type%></th>
+			<th><%:Target%></th>
+			<th><%:Interface%></th>
+			<th><%:Priority%></th>
+			<th><%:Status%></th>
+		</tr>
+	</thead>
+	<tbody>
+	<% for _, rule in ipairs(rules) do
+		local name = rule.name or ""
+		local rtype = rule.type or "asn"
+		local target = ""
+		if rtype == "asn" then
+			if type(rule.asn) == "table" then
+				target = table.concat(rule.asn, ", ")
+			else
+				target = tostring(rule.asn or "")
+			end
+		else
+			if type(rule.ip) == "table" then
+				target = table.concat(rule.ip, ", ")
+			else
+				target = tostring(rule.ip or "")
+			end
+		end
+		-- Truncate long targets
+		if #target > 40 then
+			target = target:sub(1, 37) .. "..."
+		end
+		local via = rule.via or ""
+		local priority = rule.priority or 100
+		local enabled = rule.enabled
+		if enabled == nil then enabled = true end
+
+		-- Status badge
+		local rbadge = "mergen-badge-ok"
+		local rtext = "active"
+		if not enabled then
+			rbadge = "mergen-badge-off"
+			rtext = "disabled"
+		end
+	%>
+		<tr>
+			<td>
+				<a href="<%=url('admin/services/mergen/rules')%>"><%=name%></a>
+			</td>
+			<td><%=rtype:upper()%></td>
+			<td title="<%=target%>"><%=target%></td>
+			<td><%=via%></td>
+			<td><%=priority%></td>
+			<td><span class="mergen-badge <%=rbadge%>"><%=rtext%></span></td>
+		</tr>
+	<% end %>
+	</tbody>
+</table>
+<% else %>
+<p style="color:#666"><%:No rules configured yet.%></p>
+<% end %>
 </div>
+
+<!-- Status Output (collapsible) -->
+<details>
+	<summary><h3 style="display:inline"><%:Daemon Status%> (<%:details%>)</h3></summary>
+	<div class="mergen-log" id="mergen-status-output">
+<%=status_raw%>
+	</div>
+</details>
 
 <!-- Recent Operations -->
 <h3><%:Recent Operations%></h3>
 <div class="mergen-log" id="mergen-log-output">
 <%
 	local log_raw = util.exec("/usr/bin/mergen log --tail 10 2>/dev/null") or ""
-	write(log_raw)
+	if log_raw == "" then
+		write("<em>" .. translate("No recent operations") .. "</em>")
+	else
+		-- Format log entries with timestamps
+		for line in log_raw:gmatch("[^\n]+") do
+			local ts, rest = line:match("^(%S+ %S+)%s+(.*)")
+			if ts then
+				write('<div class="log-entry"><span class="log-time">' .. ts .. '</span>' .. rest .. '</div>\n')
+			else
+				write('<div class="log-entry">' .. line .. '</div>\n')
+			end
+		end
+	end
 %>
 </div>
+<p><a href="<%=url('admin/services/mergen/log')%>"><%:View all logs%> &rarr;</a></p>
 
 <script src="<%=resource%>/mergen/mergen.js"></script>
 

@@ -51,7 +51,7 @@ luci-app-mergen package structure, LuCI menu integration and RPC access layer fo
 
 ### T035 - Overview Page
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 2 days
 

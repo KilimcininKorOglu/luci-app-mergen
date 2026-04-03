@@ -117,3 +117,33 @@ msgstr "Parallel"
 
 msgid "Cache Only"
 msgstr "Cache Only"
+
+msgid "Restart Daemon"
+msgstr "Restart Daemon"
+
+msgid "Next Sync"
+msgstr "Next Sync"
+
+msgid "Total Prefixes"
+msgstr "Total Prefixes"
+
+msgid "No rules configured yet."
+msgstr "No rules configured yet."
+
+msgid "No recent operations"
+msgstr "No recent operations"
+
+msgid "View all logs"
+msgstr "View all logs"
+
+msgid "active"
+msgstr "active"
+
+msgid "disabled"
+msgstr "disabled"
+
+msgid "details"
+msgstr "details"
+
+msgid "Log Level"
+msgstr "Log Level"

@@ -41,6 +41,9 @@ function index()
 
 	entry({"admin", "services", "mergen", "rpc", "toggle"},
 		post("rpc_toggle")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "restart"},
+		post("rpc_restart")).leaf = true
 end
 
 -- Helper: execute mergen CLI command and return output
@@ -128,5 +131,15 @@ function rpc_toggle()
 	json_response({
 		success = true,
 		output = output
+	})
+end
+
+-- RPC: Restart daemon
+function rpc_restart()
+	local util = require "luci.util"
+	util.exec("/etc/init.d/mergen restart 2>&1")
+	json_response({
+		success = true,
+		output = "Daemon restarted"
 	})
 end
