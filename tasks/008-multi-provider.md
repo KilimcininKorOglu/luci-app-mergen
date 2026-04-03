@@ -10,7 +10,7 @@ Implementation of all 6 ASN data sources, priority-based fallback, health monito
 
 ### T023 - bgp.tools & bgpview.io Providers
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 2 days
 
