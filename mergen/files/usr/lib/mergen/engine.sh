@@ -446,3 +446,288 @@ mergen_rule_update() {
 	mergen_log "info" "Engine" "Kural '${name}' güncellendi: ${field}=${value}"
 	return 0
 }
+
+# ── IPv4 CIDR Utilities ────────────────────────────────────
+
+# Convert dotted IPv4 address to 32-bit integer
+# Usage: _mergen_ip_to_int "10.0.0.0"
+# Sets MERGEN_IP_INT on success
+MERGEN_IP_INT=0
+
+_mergen_ip_to_int() {
+	local ip="$1"
+	local a b c d
+	IFS='.' read -r a b c d <<IPEOF
+$ip
+IPEOF
+	MERGEN_IP_INT=$(( (a << 24) + (b << 16) + (c << 8) + d ))
+}
+
+# Convert 32-bit integer to dotted IPv4 address
+# Usage: _mergen_int_to_ip 167772160
+# Sets MERGEN_IP_STR on success
+MERGEN_IP_STR=""
+
+_mergen_int_to_ip() {
+	local n="$1"
+	MERGEN_IP_STR="$(( (n >> 24) & 255 )).$(( (n >> 16) & 255 )).$(( (n >> 8) & 255 )).$(( n & 255 ))"
+}
+
+# Get the network address (start) and broadcast address (end) of a CIDR block
+# Usage: _mergen_cidr_range "10.0.0.0/8"
+# Sets MERGEN_CIDR_START and MERGEN_CIDR_END as integers
+MERGEN_CIDR_START=0
+MERGEN_CIDR_END=0
+
+_mergen_cidr_range() {
+	local cidr="$1"
+	local addr="${cidr%/*}"
+	local prefix="${cidr#*/}"
+
+	_mergen_ip_to_int "$addr"
+	local ip_int="$MERGEN_IP_INT"
+
+	# Mask: all 1s in the prefix bits, 0s in host bits
+	local mask=0
+	if [ "$prefix" -gt 0 ]; then
+		mask=$(( (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF ))
+	fi
+
+	MERGEN_CIDR_START=$(( ip_int & mask ))
+	# End = network OR (inverse mask)
+	local hostmask=$(( mask ^ 0xFFFFFFFF ))
+	MERGEN_CIDR_END=$(( MERGEN_CIDR_START | hostmask ))
+}
+
+# Check if two CIDR blocks overlap
+# Usage: _mergen_cidr_overlaps "10.0.0.0/8" "10.1.0.0/16"
+# Returns 0 if overlapping, 1 if disjoint
+_mergen_cidr_overlaps() {
+	local cidr_a="$1"
+	local cidr_b="$2"
+
+	_mergen_cidr_range "$cidr_a"
+	local a_start="$MERGEN_CIDR_START"
+	local a_end="$MERGEN_CIDR_END"
+
+	_mergen_cidr_range "$cidr_b"
+	local b_start="$MERGEN_CIDR_START"
+	local b_end="$MERGEN_CIDR_END"
+
+	# Two ranges overlap if: a_start <= b_end AND b_start <= a_end
+	if [ "$a_start" -le "$b_end" ] && [ "$b_start" -le "$a_end" ]; then
+		return 0
+	fi
+	return 1
+}
+
+# ── Conflict Detection ─────────────────────────────────────
+
+# Check for prefix conflicts across all active rules
+# A conflict is when the same or overlapping prefix is routed via different interfaces
+# Usage: mergen_check_conflicts
+# Sets MERGEN_CONFLICT_COUNT and prints conflict details
+# Returns 0 if no conflicts, 1 if conflicts found
+MERGEN_CONFLICT_COUNT=0
+MERGEN_CONFLICT_REPORT=""
+
+mergen_check_conflicts() {
+	MERGEN_CONFLICT_COUNT=0
+	MERGEN_CONFLICT_REPORT=""
+
+	# Collect all rule prefixes with their rule name and interface
+	# Format: "prefix|rule_name|via" per line
+	local all_prefixes=""
+
+	_collect_prefixes_cb() {
+		local section="$1"
+		local name via enabled asn_val ip_val
+		config_get name "$section" "name" ""
+		config_get via "$section" "via" ""
+		config_get enabled "$section" "enabled" "1"
+
+		[ "$enabled" != "1" ] && return
+		[ -z "$name" ] && return
+
+		config_get asn_val "$section" "asn" ""
+		config_get ip_val "$section" "ip" ""
+
+		local targets=""
+		if [ -n "$ip_val" ]; then
+			targets="$ip_val"
+		fi
+		# ASN rules are resolved at apply time — skip for static conflict check
+		# Only IP-based rules can be checked statically
+
+		local item
+		for item in $targets; do
+			# Only check IPv4 CIDRs for overlap (contains '/' and no ':')
+			case "$item" in
+				*:*) continue ;; # Skip IPv6
+				*/*) ;;
+				*) continue ;; # Skip non-CIDR
+			esac
+			all_prefixes="${all_prefixes}
+${item}|${name}|${via}"
+		done
+	}
+
+	config_load "$MERGEN_CONF"
+	config_foreach _collect_prefixes_cb "rule"
+
+	all_prefixes="$(echo "$all_prefixes" | sed '/^$/d')"
+	[ -z "$all_prefixes" ] && return 0
+
+	# Write to temp file for double-loop comparison
+	local tmpfile="${MERGEN_TMP:-/tmp/mergen}/conflict_check.tmp"
+	[ -d "${MERGEN_TMP:-/tmp/mergen}" ] || mkdir -p "${MERGEN_TMP:-/tmp/mergen}"
+	echo "$all_prefixes" > "$tmpfile"
+
+	# Compare each pair (O(n^2) but n is small for routing rules)
+	local line_a line_b
+	local prefix_a name_a via_a
+	local prefix_b name_b via_b
+	local line_num_a=0
+
+	while IFS='|' read -r prefix_a name_a via_a; do
+		line_num_a=$((line_num_a + 1))
+		local line_num_b=0
+
+		while IFS='|' read -r prefix_b name_b via_b; do
+			line_num_b=$((line_num_b + 1))
+			# Skip same line and already-compared pairs
+			[ "$line_num_b" -le "$line_num_a" ] && continue
+			# Skip same rule
+			[ "$name_a" = "$name_b" ] && continue
+			# Skip same interface (not a conflict if same destination)
+			[ "$via_a" = "$via_b" ] && continue
+
+			if _mergen_cidr_overlaps "$prefix_a" "$prefix_b"; then
+				MERGEN_CONFLICT_COUNT=$((MERGEN_CONFLICT_COUNT + 1))
+				local detail="Çakışma: '${name_a}' (${prefix_a} -> ${via_a}) <-> '${name_b}' (${prefix_b} -> ${via_b})"
+				MERGEN_CONFLICT_REPORT="${MERGEN_CONFLICT_REPORT}
+${detail}"
+				mergen_log "warning" "Engine" "$detail"
+			fi
+		done < "$tmpfile"
+	done < "$tmpfile"
+
+	rm -f "$tmpfile"
+
+	MERGEN_CONFLICT_REPORT="$(echo "$MERGEN_CONFLICT_REPORT" | sed '/^$/d')"
+
+	if [ "$MERGEN_CONFLICT_COUNT" -gt 0 ]; then
+		mergen_log "warning" "Engine" "${MERGEN_CONFLICT_COUNT} prefix çakışması tespit edildi."
+		return 1
+	fi
+
+	mergen_log "info" "Engine" "Prefix çakışması bulunamadı."
+	return 0
+}
+
+# ── CIDR Aggregation ───────────────────────────────────────
+
+# Aggregate a list of IPv4 CIDR prefixes by merging adjacent blocks
+# Usage: mergen_aggregate_prefixes <prefix_list>
+#   prefix_list: newline-separated CIDR prefixes
+# Prints aggregated list to stdout
+# Returns 0 on success
+mergen_aggregate_prefixes() {
+	local prefix_list="$1"
+
+	if [ -z "$prefix_list" ]; then
+		return 0
+	fi
+
+	local tmpdir="${MERGEN_TMP:-/tmp/mergen}"
+	[ -d "$tmpdir" ] || mkdir -p "$tmpdir"
+	local infile="${tmpdir}/agg_in.tmp"
+	local outfile="${tmpdir}/agg_out.tmp"
+
+	# Filter only valid IPv4 CIDRs, sort, deduplicate
+	echo "$prefix_list" | sed '/^$/d' | while IFS= read -r line; do
+		case "$line" in
+			*:*) continue ;; # Skip IPv6
+			*/*) echo "$line" ;;
+		esac
+	done | sort -t. -k1,1n -k2,2n -k3,3n -k4,4n | uniq > "$infile"
+
+	local changed=1
+
+	# Iterate until no more merges are possible
+	while [ "$changed" -eq 1 ]; do
+		changed=0
+		> "$outfile"
+
+		local prev_prefix="" prev_start=0 prev_end=0 prev_len=0
+		local skip_next=0
+
+		while IFS= read -r cidr; do
+			[ -z "$cidr" ] && continue
+
+			if [ "$skip_next" -eq 1 ]; then
+				skip_next=0
+				continue
+			fi
+
+			local addr="${cidr%/*}"
+			local prefix_len="${cidr#*/}"
+
+			_mergen_cidr_range "$cidr"
+			local cur_start="$MERGEN_CIDR_START"
+			local cur_end="$MERGEN_CIDR_END"
+
+			if [ -n "$prev_prefix" ] && [ "$prefix_len" = "$prev_len" ]; then
+				# Check if prev and current are adjacent and can merge
+				# Adjacent: prev_end + 1 == cur_start
+				local next_after_prev=$((prev_end + 1))
+
+				if [ "$next_after_prev" -eq "$cur_start" ]; then
+					# Check if merged block aligns to the parent prefix
+					local parent_len=$((prev_len - 1))
+					if [ "$parent_len" -ge 0 ]; then
+						local parent_mask=0
+						if [ "$parent_len" -gt 0 ]; then
+							parent_mask=$(( (0xFFFFFFFF << (32 - parent_len)) & 0xFFFFFFFF ))
+						fi
+						local parent_net=$(( prev_start & parent_mask ))
+
+						if [ "$parent_net" -eq "$prev_start" ]; then
+							# Merge: emit parent CIDR instead of both
+							_mergen_int_to_ip "$parent_net"
+							echo "${MERGEN_IP_STR}/${parent_len}" >> "$outfile"
+							changed=1
+							prev_prefix=""
+							prev_start=0
+							prev_end=0
+							prev_len=0
+							continue
+						fi
+					fi
+				fi
+			fi
+
+			# Emit previous (it couldn't be merged)
+			if [ -n "$prev_prefix" ]; then
+				echo "$prev_prefix" >> "$outfile"
+			fi
+
+			prev_prefix="$cidr"
+			prev_start="$cur_start"
+			prev_end="$cur_end"
+			prev_len="$prefix_len"
+		done < "$infile"
+
+		# Emit last prefix
+		if [ -n "$prev_prefix" ]; then
+			echo "$prev_prefix" >> "$outfile"
+		fi
+
+		# Swap files for next iteration
+		cp "$outfile" "$infile"
+	done
+
+	cat "$infile"
+	rm -f "$infile" "$outfile"
+	return 0
+}

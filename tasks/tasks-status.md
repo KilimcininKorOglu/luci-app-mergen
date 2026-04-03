@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 21    | 43%        |
+| NOT_STARTED | 20    | 41%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 28    | 57%        |
+| COMPLETED   | 29    | 59%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -78,7 +78,7 @@
 | T025 | F008    | RouteViews & IRR/RADB Providers   | P3       | 2.5d   | COMPLETED   | T004         |
 | T026 | F008    | Provider Fallback & Health        | P2       | 2d     | COMPLETED   | T004, T006   |
 | T027 | F009    | IPv6 Dual-Stack Routing           | P2       | 2.5d   | COMPLETED   | T008, T017   |
-| T028 | F009    | Conflict Detection & Aggregation  | P3       | 2d     | NOT_STARTED | T007         |
+| T028 | F009    | Conflict Detection & Aggregation  | P3       | 2d     | COMPLETED   | T007         |
 | T029 | F009    | Rule Grouping (Label/Tag)         | P4       | 1d     | NOT_STARTED | T007         |
 | T030 | F010    | JSON Import/Export                | P2       | 2d     | NOT_STARTED | T007, T010   |
 | T031 | F010    | Cron Auto-Update                  | P2       | 1.5d   | NOT_STARTED | T006, T010   |

@@ -921,6 +921,16 @@ cmd_validate() {
 		mergen_provider_test_all
 	fi
 
+	# Check prefix conflicts across rules
+	echo ""
+	echo "[*] Prefix cakismalari kontrol ediliyor..."
+	if ! mergen_check_conflicts; then
+		echo "$MERGEN_CONFLICT_REPORT"
+		error_count=$((error_count + MERGEN_CONFLICT_COUNT))
+	else
+		echo "[OK] Prefix cakismasi yok"
+	fi
+
 	echo ""
 	if [ "$error_count" -eq 0 ]; then
 		if [ "$valid_count" -eq 0 ]; then
@@ -930,7 +940,7 @@ cmd_validate() {
 		fi
 		return 0
 	else
-		printf "[!] %s kural hatali, %s kural gecerli\n" "$error_count" "$valid_count" >&2
+		printf "[!] %s hata tespit edildi, %s kural gecerli\n" "$error_count" "$valid_count" >&2
 		return 1
 	fi
 }
