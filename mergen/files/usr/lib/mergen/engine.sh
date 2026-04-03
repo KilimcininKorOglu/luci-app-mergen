@@ -44,9 +44,9 @@ mergen_rule_add() {
 
 	# Validate type
 	case "$type" in
-		asn|ip|domain) ;;
+		asn|ip|domain|country) ;;
 		*)
-			mergen_log "error" "Engine" "[!] Hata: Geçersiz kural tipi: '$type'. Geçerli: asn, ip, domain"
+			mergen_log "error" "Engine" "[!] Hata: Geçersiz kural tipi: '$type'. Geçerli: asn, ip, domain, country"
 			return 1
 			;;
 	esac
@@ -78,6 +78,11 @@ mergen_rule_add() {
 			fi
 		elif [ "$type" = "domain" ]; then
 			if ! validate_domain "$target_item"; then
+				mergen_log "error" "Engine" "$MERGEN_VALIDATE_ERR"
+				return 1
+			fi
+		elif [ "$type" = "country" ]; then
+			if ! validate_country_code "$target_item"; then
 				mergen_log "error" "Engine" "$MERGEN_VALIDATE_ERR"
 				return 1
 			fi
@@ -246,11 +251,12 @@ mergen_rule_get() {
 	config_get MERGEN_RULE_ENABLED "$section_id" "enabled" "1"
 
 	# Determine type and targets
-	# Try option asn first, then list asn, then option ip, then list ip, then domain
-	local asn_val ip_val domain_val
+	# Try: asn, ip, domain, country
+	local asn_val ip_val domain_val country_val
 	config_get asn_val "$section_id" "asn" ""
 	config_get ip_val "$section_id" "ip" ""
 	config_get domain_val "$section_id" "domain" ""
+	config_get country_val "$section_id" "country" ""
 
 	if [ -n "$asn_val" ]; then
 		MERGEN_RULE_TYPE="asn"
@@ -261,6 +267,9 @@ mergen_rule_get() {
 	elif [ -n "$domain_val" ]; then
 		MERGEN_RULE_TYPE="domain"
 		MERGEN_RULE_TARGETS="$domain_val"
+	elif [ -n "$country_val" ]; then
+		MERGEN_RULE_TYPE="country"
+		MERGEN_RULE_TARGETS="$country_val"
 	else
 		MERGEN_RULE_TYPE="unknown"
 		MERGEN_RULE_TARGETS=""
@@ -287,7 +296,7 @@ mergen_rule_list() {
 
 	_rule_list_cb() {
 		local section="$1"
-		local name via priority enabled asn_val ip_val domain_val
+		local name via priority enabled asn_val ip_val domain_val country_val
 		local type target status
 
 		config_get name "$section" "name" ""
@@ -297,6 +306,7 @@ mergen_rule_list() {
 		config_get asn_val "$section" "asn" ""
 		config_get ip_val "$section" "ip" ""
 		config_get domain_val "$section" "domain" ""
+		config_get country_val "$section" "country" ""
 
 		# Determine type and target display
 		if [ -n "$asn_val" ]; then
@@ -349,6 +359,9 @@ mergen_rule_list() {
 			else
 				target="$first_dom"
 			fi
+		elif [ -n "$country_val" ]; then
+			type="CC"
+			target="$country_val"
 		else
 			type="?"
 			target="-"

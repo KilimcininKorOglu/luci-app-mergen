@@ -215,6 +215,24 @@ ${MERGEN_RESOLVE_RESULT_V6}"
 		# Domain-based rule: configure dnsmasq to populate nft/ipset sets
 		mergen_dnsmasq_apply "$rule_name" "$targets" "$table_num" "$via" "$priority"
 		return $?
+	elif [ "$type" = "country" ]; then
+		# Country-based rule: resolve all country ASNs to prefixes
+		local cc_item
+		for cc_item in $targets; do
+			[ -z "$cc_item" ] && continue
+			if mergen_resolve_country "$cc_item"; then
+				if [ -n "$MERGEN_COUNTRY_PREFIXES_V4" ]; then
+					prefix_list="${prefix_list}
+${MERGEN_COUNTRY_PREFIXES_V4}"
+				fi
+				if [ "$ipv6_enabled" = "1" ] && [ -n "$MERGEN_COUNTRY_PREFIXES_V6" ]; then
+					prefix_list_v6="${prefix_list_v6}
+${MERGEN_COUNTRY_PREFIXES_V6}"
+				fi
+			else
+				mergen_log "warning" "Route" "Ülke ${cc_item} çözümlenemedi, atlanıyor."
+			fi
+		done
 	else
 		mergen_log "error" "Route" "[!] Hata: Bilinmeyen kural tipi: ${type}"
 		return 1

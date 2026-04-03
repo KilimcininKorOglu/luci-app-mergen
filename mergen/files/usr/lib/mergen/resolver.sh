@@ -681,3 +681,186 @@ mergen_provider_test_all() {
 
 	mergen_list_providers _test_all_cb
 }
+
+# ── Country-Based Resolution ─────────────────────────────
+
+MERGEN_COUNTRY_MAP_DIR="/tmp/mergen/country"
+MERGEN_COUNTRY_PREFIXES_V4=""
+MERGEN_COUNTRY_PREFIXES_V6=""
+MERGEN_COUNTRY_ASN_COUNT=0
+
+# Resolve a country code to prefix lists
+# Uses delegated stats from RIR or MaxMind country-ASN mapping
+# Usage: mergen_resolve_country <country_code>
+# Sets: MERGEN_COUNTRY_PREFIXES_V4, MERGEN_COUNTRY_PREFIXES_V6, MERGEN_COUNTRY_ASN_COUNT
+# Returns 0 on success, 1 on failure
+mergen_resolve_country() {
+	local country="$1"
+
+	MERGEN_COUNTRY_PREFIXES_V4=""
+	MERGEN_COUNTRY_PREFIXES_V6=""
+	MERGEN_COUNTRY_ASN_COUNT=0
+
+	# Uppercase
+	country="$(echo "$country" | tr '[:lower:]' '[:upper:]')"
+
+	if [ -z "$country" ]; then
+		mergen_log "error" "Country" "[!] Hata: Ülke kodu belirtilmeli."
+		return 1
+	fi
+
+	mergen_log "info" "Country" "Ülke çözümleniyor: ${country}"
+
+	# Ensure cache directory exists
+	[ -d "$MERGEN_COUNTRY_MAP_DIR" ] || mkdir -p "$MERGEN_COUNTRY_MAP_DIR"
+
+	local country_asn_file="${MERGEN_COUNTRY_MAP_DIR}/${country}_asns.txt"
+	local country_cache_file="${MERGEN_COUNTRY_MAP_DIR}/${country}_prefixes.cache"
+
+	# Check if we have a cached result (TTL: 24 hours)
+	if [ -f "$country_cache_file" ]; then
+		local cache_age
+		cache_age="$(( $(date +%s) - $(date -r "$country_cache_file" +%s 2>/dev/null || echo 0) ))"
+		if [ "$cache_age" -lt 86400 ]; then
+			mergen_log "debug" "Country" "Cache kullanılıyor: ${country}"
+			MERGEN_COUNTRY_PREFIXES_V4="$(sed -n '/^#V4$/,/^#V6$/p' "$country_cache_file" | grep -v '^#')"
+			MERGEN_COUNTRY_PREFIXES_V6="$(sed -n '/^#V6$/,/^#END$/p' "$country_cache_file" | grep -v '^#')"
+			MERGEN_COUNTRY_ASN_COUNT="$(grep -c '^#ASN:' "$country_cache_file" 2>/dev/null || echo 0)"
+			return 0
+		fi
+	fi
+
+	# Step 1: Get ASN list for the country
+	# Try RIR delegated stats first (RIPE NCC publishes delegated-extended)
+	if ! _country_fetch_asn_list "$country" "$country_asn_file"; then
+		mergen_log "error" "Country" "[!] Hata: '${country}' için ASN listesi alınamadı."
+		return 1
+	fi
+
+	local asn_count
+	asn_count="$(wc -l < "$country_asn_file" | tr -d ' ')"
+	MERGEN_COUNTRY_ASN_COUNT="$asn_count"
+
+	if [ "$asn_count" -eq 0 ]; then
+		mergen_log "warning" "Country" "Ülke '${country}' için ASN bulunamadı."
+		return 1
+	fi
+
+	mergen_log "info" "Country" "${country}: ${asn_count} ASN bulundu, prefix çözümleniyor..."
+
+	# Prefix limit warning
+	mergen_uci_get "global" "total_prefix_limit" "50000"
+	local total_limit="$MERGEN_UCI_RESULT"
+	if [ "$asn_count" -gt 100 ]; then
+		mergen_log "warning" "Country" "Ülke '${country}' ${asn_count} ASN içeriyor — çok sayıda prefix oluşabilir."
+	fi
+
+	# Step 2: Resolve each ASN to prefixes
+	local all_v4="" all_v6=""
+	local resolved_count=0
+	local asn_item
+
+	mergen_resolver_init
+
+	while IFS= read -r asn_item; do
+		[ -z "$asn_item" ] && continue
+
+		if mergen_resolve_asn "$asn_item"; then
+			if [ -n "$MERGEN_RESOLVE_RESULT_V4" ]; then
+				all_v4="${all_v4}
+${MERGEN_RESOLVE_RESULT_V4}"
+			fi
+			if [ -n "$MERGEN_RESOLVE_RESULT_V6" ]; then
+				all_v6="${all_v6}
+${MERGEN_RESOLVE_RESULT_V6}"
+			fi
+			resolved_count=$((resolved_count + 1))
+		fi
+
+		# Safety: stop if we exceed the total prefix limit
+		local current_count
+		current_count="$(echo "$all_v4" | grep -c '.' 2>/dev/null || echo 0)"
+		if [ "$current_count" -gt "$total_limit" ]; then
+			mergen_log "warning" "Country" "Prefix limiti aşıldı (${current_count}/${total_limit}), erken durduruluyor."
+			break
+		fi
+	done < "$country_asn_file"
+
+	# Clean empty lines
+	all_v4="$(echo "$all_v4" | sed '/^$/d')"
+	all_v6="$(echo "$all_v6" | sed '/^$/d')"
+
+	MERGEN_COUNTRY_PREFIXES_V4="$all_v4"
+	MERGEN_COUNTRY_PREFIXES_V6="$all_v6"
+
+	# Write cache
+	{
+		echo "#ASN_COUNT: ${asn_count}"
+		echo "#RESOLVED: ${resolved_count}"
+		local asn_line
+		while IFS= read -r asn_line; do
+			[ -n "$asn_line" ] && echo "#ASN: ${asn_line}"
+		done < "$country_asn_file"
+		echo "#V4"
+		echo "$all_v4"
+		echo "#V6"
+		echo "$all_v6"
+		echo "#END"
+	} > "$country_cache_file"
+
+	local v4_count v6_count
+	v4_count="$(echo "$all_v4" | grep -c '.' 2>/dev/null || echo 0)"
+	v6_count="$(echo "$all_v6" | grep -c '.' 2>/dev/null || echo 0)"
+
+	mergen_log "info" "Country" "Ülke ${country}: ${resolved_count}/${asn_count} ASN çözümlendi (${v4_count} IPv4, ${v6_count} IPv6 prefix)"
+	return 0
+}
+
+# Fetch ASN list for a country code from RIR delegated stats
+# Uses RIPE NCC combined delegated-extended file
+# Output: one ASN per line to the output file
+_country_fetch_asn_list() {
+	local country="$1"
+	local output_file="$2"
+	local delegated_file="${MERGEN_COUNTRY_MAP_DIR}/delegated-combined.txt"
+
+	# Download delegated stats if not cached (TTL: 7 days)
+	local need_download=1
+	if [ -f "$delegated_file" ]; then
+		local file_age
+		file_age="$(( $(date +%s) - $(date -r "$delegated_file" +%s 2>/dev/null || echo 0) ))"
+		[ "$file_age" -lt 604800 ] && need_download=0
+	fi
+
+	if [ "$need_download" -eq 1 ]; then
+		mergen_log "info" "Country" "RIR delegated stats indiriliyor..."
+		local url="https://ftp.ripe.net/pub/stats/ripencc/nro-stats/latest/nro-delegated-stats"
+		if command -v wget >/dev/null 2>&1; then
+			wget -q -O "$delegated_file" "$url" 2>/dev/null
+		elif command -v curl >/dev/null 2>&1; then
+			curl -sL -o "$delegated_file" "$url" 2>/dev/null
+		else
+			mergen_log "error" "Country" "wget veya curl bulunamadı"
+			return 1
+		fi
+
+		if [ ! -s "$delegated_file" ]; then
+			rm -f "$delegated_file"
+			mergen_log "error" "Country" "Delegated stats indirilemedi"
+			return 1
+		fi
+	fi
+
+	# Extract ASN numbers for the country
+	# Format: registry|CC|asn|ASN_START|COUNT|date|status
+	grep "|${country}|asn|" "$delegated_file" 2>/dev/null | \
+		awk -F'|' '{ print $4 }' | \
+		sort -un > "$output_file"
+
+	if [ ! -s "$output_file" ]; then
+		mergen_log "warning" "Country" "Delegated stats'ta '${country}' için ASN bulunamadı"
+		return 1
+	fi
+
+	return 0
+}

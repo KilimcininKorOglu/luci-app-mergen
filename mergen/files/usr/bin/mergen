@@ -66,6 +66,7 @@ cmd_help() {
 Kullanim: mergen add --name <AD> --asn <ASN> --via <ARAYUZ> [--priority <ONCELIK>]
           mergen add --name <AD> --ip <CIDR> --via <ARAYUZ> [--priority <ONCELIK>]
           mergen add --name <AD> --domain <DOMAIN> --via <ARAYUZ> [--priority <ONCELIK>]
+          mergen add --name <AD> --country <ULKE> --via <ARAYUZ> [--priority <ONCELIK>]
 
 Yeni bir yonlendirme kurali ekler.
 
@@ -75,6 +76,8 @@ Secenekler:
   --ip <CIDR>          IP/CIDR blogu (virgul ile birden fazla: 10.0.0.0/8,172.16.0.0/12)
   --domain <DOMAIN>    Domain adi (virgul ile birden fazla: netflix.com,hulu.com)
                        Wildcard destegi: *.netflix.com (dnsmasq nftset/ipset)
+  --country <ULKE>     Ulke kodu (ISO 3166-1 alpha-2: TR, US, DE)
+                       Ulkedeki tum ASN'lerin prefixlerini toplu olarak ekler
   --via <ARAYUZ>       Cikis arayuzu (orn: wg0, eth1)
   --priority <ONCELIK> Oncelik degeri (1-32000, varsayilan: 100)
 
@@ -83,7 +86,7 @@ Ornekler:
   mergen add --name google --asn 15169,36040 --via wg0 --priority 200
   mergen add --name internal --ip 10.0.0.0/8 --via lan
   mergen add --name streaming --domain netflix.com,hulu.com --via wg0
-  mergen add --name media --domain *.youtube.com --via wg0
+  mergen add --name turkiye --country TR --via wan
 HELP
 			;;
 		remove)
@@ -352,7 +355,7 @@ cmd_add() {
 			--asn)
 				[ -z "$2" ] && { echo "[!] Hata: --asn degeri gerekli." >&2; return 2; }
 				if [ -n "$type" ] && [ "$type" != "asn" ]; then
-					echo "[!] Hata: --asn, --ip ve --domain ayni anda kullanilamaz." >&2
+					echo "[!] Hata: --asn, --ip, --domain ve --country ayni anda kullanilamaz." >&2
 					return 2
 				fi
 				type="asn"
@@ -366,7 +369,7 @@ cmd_add() {
 			--ip)
 				[ -z "$2" ] && { echo "[!] Hata: --ip degeri gerekli." >&2; return 2; }
 				if [ -n "$type" ] && [ "$type" != "ip" ]; then
-					echo "[!] Hata: --asn, --ip ve --domain ayni anda kullanilamaz." >&2
+					echo "[!] Hata: --asn, --ip, --domain ve --country ayni anda kullanilamaz." >&2
 					return 2
 				fi
 				type="ip"
@@ -380,7 +383,7 @@ cmd_add() {
 			--domain)
 				[ -z "$2" ] && { echo "[!] Hata: --domain degeri gerekli." >&2; return 2; }
 				if [ -n "$type" ] && [ "$type" != "domain" ]; then
-					echo "[!] Hata: --asn, --ip ve --domain ayni anda kullanilamaz." >&2
+					echo "[!] Hata: --asn, --ip, --domain ve --country ayni anda kullanilamaz." >&2
 					return 2
 				fi
 				type="domain"
@@ -388,6 +391,20 @@ cmd_add() {
 					targets="${targets},${2}"
 				else
 					targets="$2"
+				fi
+				shift 2
+				;;
+			--country)
+				[ -z "$2" ] && { echo "[!] Hata: --country degeri gerekli." >&2; return 2; }
+				if [ -n "$type" ] && [ "$type" != "country" ]; then
+					echo "[!] Hata: --asn, --ip, --domain ve --country ayni anda kullanilamaz." >&2
+					return 2
+				fi
+				type="country"
+				if [ -n "$targets" ]; then
+					targets="${targets},${2}"
+				else
+					targets="$(echo "$2" | tr '[:lower:]' '[:upper:]')"
 				fi
 				shift 2
 				;;
@@ -413,7 +430,7 @@ cmd_add() {
 		return 2
 	fi
 	if [ -z "$type" ]; then
-		echo "[!] Hata: --asn, --ip veya --domain secenegi gerekli." >&2
+		echo "[!] Hata: --asn, --ip, --domain veya --country secenegi gerekli." >&2
 		echo "Kullanim: mergen add --name <AD> --asn <ASN> --via <ARAYUZ>" >&2
 		return 2
 	fi

@@ -482,3 +482,34 @@ validate_domain() {
 
 	return 0
 }
+
+# ── Country Code Validation ─────────────────────────────
+
+# Validate ISO 3166-1 alpha-2 country code
+# Accepts: two uppercase letters (e.g., TR, US, DE)
+# Returns 0 if valid, 1 if invalid
+# Sets MERGEN_VALIDATE_ERR on failure
+validate_country_code() {
+	local value="$1"
+	MERGEN_VALIDATE_ERR=""
+
+	if [ -z "$value" ]; then
+		MERGEN_VALIDATE_ERR="[!] Hata: Ülke kodu boş olamaz."
+		return 1
+	fi
+
+	# Uppercase the value
+	value="$(echo "$value" | tr '[:lower:]' '[:upper:]')"
+
+	# Must be exactly 2 uppercase letters
+	case "$value" in
+		[A-Z][A-Z])
+			;;
+		*)
+			MERGEN_VALIDATE_ERR="[!] Hata: Geçersiz ülke kodu '$value'. ISO 3166-1 alpha-2 formatı gerekli (ör: TR, US, DE)."
+			return 1
+			;;
+	esac
+
+	return 0
+}

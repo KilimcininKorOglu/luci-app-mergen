@@ -43,7 +43,7 @@ Domain-based routing rules. Dynamic IP resolution from DNS responses via dnsmasq
 
 ### T043 - Country-Based Routing
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 2 days
 
