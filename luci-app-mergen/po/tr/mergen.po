@@ -1,0 +1,119 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+msgid "Mergen"
+msgstr "Mergen"
+
+msgid "Overview"
+msgstr "Genel Bakis"
+
+msgid "Rules"
+msgstr "Kurallar"
+
+msgid "Providers"
+msgstr "Saglayicilar"
+
+msgid "Advanced"
+msgstr "Gelismis"
+
+msgid "ASN/IP based policy routing for OpenWrt"
+msgstr "OpenWrt icin ASN/IP tabanli politika yonlendirme"
+
+msgid "Daemon Status"
+msgstr "Servis Durumu"
+
+msgid "Total Rules"
+msgstr "Toplam Kural"
+
+msgid "Total Prefixes"
+msgstr "Toplam Prefix"
+
+msgid "Last Sync"
+msgstr "Son Senkronizasyon"
+
+msgid "Active Rules"
+msgstr "Aktif Kurallar"
+
+msgid "Apply All"
+msgstr "Tumunu Uygula"
+
+msgid "Update Prefixes"
+msgstr "Prefix Guncelle"
+
+msgid "Recent Operations"
+msgstr "Son Islemler"
+
+msgid "Rule Name"
+msgstr "Kural Adi"
+
+msgid "Rule Type"
+msgstr "Kural Tipi"
+
+msgid "Target"
+msgstr "Hedef"
+
+msgid "Interface"
+msgstr "Arayuz"
+
+msgid "Priority"
+msgstr "Oncelik"
+
+msgid "Enabled"
+msgstr "Etkin"
+
+msgid "Add Rule"
+msgstr "Kural Ekle"
+
+msgid "Delete"
+msgstr "Sil"
+
+msgid "Running"
+msgstr "Calisiyor"
+
+msgid "Stopped"
+msgstr "Durduruldu"
+
+msgid "Provider Name"
+msgstr "Saglayici Adi"
+
+msgid "API URL"
+msgstr "API URL"
+
+msgid "Timeout"
+msgstr "Zaman Asimi"
+
+msgid "Rate Limit"
+msgstr "Hiz Limiti"
+
+msgid "Routing Table"
+msgstr "Yonlendirme Tablosu"
+
+msgid "Packet Engine"
+msgstr "Paket Motoru"
+
+msgid "nftables"
+msgstr "nftables"
+
+msgid "ipset"
+msgstr "ipset"
+
+msgid "Enable IPv6"
+msgstr "IPv6 Etkinlestir"
+
+msgid "Prefix Limit"
+msgstr "Prefix Limiti"
+
+msgid "Update Interval"
+msgstr "Guncelleme Araligi"
+
+msgid "Fallback Strategy"
+msgstr "Yedek Strateji"
+
+msgid "Sequential"
+msgstr "Sirayla"
+
+msgid "Parallel"
+msgstr "Paralel"
+
+msgid "Cache Only"
+msgstr "Sadece Onbellek"

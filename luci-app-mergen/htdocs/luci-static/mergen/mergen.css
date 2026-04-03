@@ -1,0 +1,148 @@
+/* Mergen LuCI Styles */
+
+/* Status cards grid */
+.mergen-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+	gap: 1rem;
+	margin-bottom: 1.5rem;
+}
+
+.mergen-card {
+	background: var(--background-color-high, #fff);
+	border: 1px solid var(--border-color-medium, #ddd);
+	border-radius: 4px;
+	padding: 1rem;
+}
+
+.mergen-card h4 {
+	margin: 0 0 0.5rem 0;
+	font-size: 0.85rem;
+	color: var(--text-color-medium, #666);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.mergen-card .value {
+	font-size: 1.5rem;
+	font-weight: 700;
+	color: var(--text-color-high, #333);
+}
+
+/* Status badges */
+.mergen-badge {
+	display: inline-block;
+	padding: 0.15rem 0.5rem;
+	border-radius: 3px;
+	font-size: 0.8rem;
+	font-weight: 600;
+}
+
+.mergen-badge-ok {
+	background: #d4edda;
+	color: #155724;
+}
+
+.mergen-badge-warn {
+	background: #fff3cd;
+	color: #856404;
+}
+
+.mergen-badge-err {
+	background: #f8d7da;
+	color: #721c24;
+}
+
+.mergen-badge-off {
+	background: #e2e3e5;
+	color: #383d41;
+}
+
+/* Rules table enhancements */
+.mergen-rules-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.mergen-rules-table th,
+.mergen-rules-table td {
+	padding: 0.5rem 0.75rem;
+	text-align: left;
+	border-bottom: 1px solid var(--border-color-medium, #ddd);
+}
+
+.mergen-rules-table th {
+	font-weight: 600;
+	background: var(--background-color-low, #f5f5f5);
+}
+
+.mergen-rules-table tr:hover {
+	background: var(--background-color-low, #f9f9f9);
+}
+
+/* Quick action buttons */
+.mergen-actions {
+	display: flex;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+	margin-bottom: 1rem;
+}
+
+.mergen-actions .cbi-button {
+	min-width: 120px;
+}
+
+/* Operations log */
+.mergen-log {
+	background: var(--background-color-low, #f5f5f5);
+	border: 1px solid var(--border-color-medium, #ddd);
+	border-radius: 4px;
+	padding: 0.75rem;
+	max-height: 300px;
+	overflow-y: auto;
+	font-family: monospace;
+	font-size: 0.85rem;
+	line-height: 1.6;
+}
+
+.mergen-log .log-entry {
+	padding: 0.15rem 0;
+	border-bottom: 1px solid var(--border-color-low, #eee);
+}
+
+.mergen-log .log-time {
+	color: var(--text-color-medium, #999);
+	margin-right: 0.5rem;
+}
+
+/* Provider list */
+.mergen-provider-status {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	margin-right: 0.5rem;
+}
+
+.mergen-provider-status.active {
+	background: #28a745;
+}
+
+.mergen-provider-status.inactive {
+	background: #dc3545;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+	.mergen-cards {
+		grid-template-columns: 1fr;
+	}
+
+	.mergen-actions {
+		flex-direction: column;
+	}
+
+	.mergen-actions .cbi-button {
+		width: 100%;
+	}
+}

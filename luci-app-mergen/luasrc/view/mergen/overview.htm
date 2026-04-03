@@ -1,0 +1,87 @@
+<%+header%>
+
+<link rel="stylesheet" href="<%=resource%>/mergen/mergen.css" />
+
+<h2><%:Mergen%> - <%:Overview%></h2>
+
+<p><%:ASN/IP based policy routing for OpenWrt%></p>
+
+<%
+	local util = require "luci.util"
+	local status_raw = util.exec("/usr/bin/mergen status 2>/dev/null") or ""
+	local version_raw = util.exec("/usr/bin/mergen version 2>/dev/null") or ""
+
+	-- Parse daemon status
+	local daemon_running = status_raw:match("Durum:%s*(%S+)") or "unknown"
+	local rule_count = status_raw:match("Toplam Kural:%s*(%d+)") or "0"
+	local active_count = status_raw:match("Aktif:%s*(%d+)") or "0"
+
+	-- Parse last sync
+	local last_sync = "N/A"
+	local sync_file = io.open("/tmp/mergen/last_sync", "r")
+	if sync_file then
+		local ts = sync_file:read("*l")
+		sync_file:close()
+		if ts then
+			last_sync = os.date("%Y-%m-%d %H:%M", tonumber(ts))
+		end
+	end
+
+	-- Status badge
+	local status_badge = "mergen-badge-off"
+	local status_text = "Stopped"
+	if daemon_running == "aktif" or daemon_running == "calisiyor" then
+		status_badge = "mergen-badge-ok"
+		status_text = "Running"
+	end
+%>
+
+<!-- Status Cards -->
+<div class="mergen-cards">
+	<div class="mergen-card">
+		<h4><%:Daemon Status%></h4>
+		<div class="value">
+			<span class="mergen-badge <%=status_badge%>"><%=status_text%></span>
+		</div>
+	</div>
+
+	<div class="mergen-card">
+		<h4><%:Total Rules%></h4>
+		<div class="value"><%=rule_count%></div>
+	</div>
+
+	<div class="mergen-card">
+		<h4><%:Active Rules%></h4>
+		<div class="value"><%=active_count%></div>
+	</div>
+
+	<div class="mergen-card">
+		<h4><%:Last Sync%></h4>
+		<div class="value" style="font-size:1rem"><%=last_sync%></div>
+	</div>
+</div>
+
+<!-- Quick Actions -->
+<div class="mergen-actions">
+	<button class="cbi-button cbi-button-apply mergen-btn-apply"><%:Apply All%></button>
+	<button class="cbi-button cbi-button-action mergen-btn-update"><%:Update Prefixes%></button>
+</div>
+
+<!-- Status Output -->
+<h3><%:Daemon Status%></h3>
+<div class="mergen-log" id="mergen-status-output">
+<%=status_raw%>
+</div>
+
+<!-- Recent Operations -->
+<h3><%:Recent Operations%></h3>
+<div class="mergen-log" id="mergen-log-output">
+<%
+	local log_raw = util.exec("/usr/bin/mergen log --tail 10 2>/dev/null") or ""
+	write(log_raw)
+%>
+</div>
+
+<script src="<%=resource%>/mergen/mergen.js"></script>
+
+<%+footer%>

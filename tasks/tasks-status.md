@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 15    | 31%        |
+| NOT_STARTED | 14    | 29%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 34    | 69%        |
+| COMPLETED   | 35    | 71%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -89,7 +89,7 @@
 
 | Task | Feature | Name                              | Priority | Effort | Status      | Dependencies |
 |------|---------|-----------------------------------|----------|--------|-------------|--------------|
-| T034 | F011    | LuCI Package Scaffold & RPC      | P2       | 2.5d   | NOT_STARTED | T010         |
+| T034 | F011    | LuCI Package Scaffold & RPC      | P2       | 2.5d   | COMPLETED   | T010         |
 | T035 | F011    | Overview Page                     | P2       | 2d     | NOT_STARTED | T034         |
 | T036 | F011    | Rules Page (Basic CRUD)           | P2       | 3d     | NOT_STARTED | T034         |
 | T037 | F011    | Provider & Advanced Settings      | P3       | 2.5d   | NOT_STARTED | T034         |

@@ -1,0 +1,119 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+msgid "Mergen"
+msgstr "Mergen"
+
+msgid "Overview"
+msgstr "Overview"
+
+msgid "Rules"
+msgstr "Rules"
+
+msgid "Providers"
+msgstr "Providers"
+
+msgid "Advanced"
+msgstr "Advanced"
+
+msgid "ASN/IP based policy routing for OpenWrt"
+msgstr "ASN/IP based policy routing for OpenWrt"
+
+msgid "Daemon Status"
+msgstr "Daemon Status"
+
+msgid "Total Rules"
+msgstr "Total Rules"
+
+msgid "Total Prefixes"
+msgstr "Total Prefixes"
+
+msgid "Last Sync"
+msgstr "Last Sync"
+
+msgid "Active Rules"
+msgstr "Active Rules"
+
+msgid "Apply All"
+msgstr "Apply All"
+
+msgid "Update Prefixes"
+msgstr "Update Prefixes"
+
+msgid "Recent Operations"
+msgstr "Recent Operations"
+
+msgid "Rule Name"
+msgstr "Rule Name"
+
+msgid "Rule Type"
+msgstr "Rule Type"
+
+msgid "Target"
+msgstr "Target"
+
+msgid "Interface"
+msgstr "Interface"
+
+msgid "Priority"
+msgstr "Priority"
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Add Rule"
+msgstr "Add Rule"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "Running"
+msgstr "Running"
+
+msgid "Stopped"
+msgstr "Stopped"
+
+msgid "Provider Name"
+msgstr "Provider Name"
+
+msgid "API URL"
+msgstr "API URL"
+
+msgid "Timeout"
+msgstr "Timeout"
+
+msgid "Rate Limit"
+msgstr "Rate Limit"
+
+msgid "Routing Table"
+msgstr "Routing Table"
+
+msgid "Packet Engine"
+msgstr "Packet Engine"
+
+msgid "nftables"
+msgstr "nftables"
+
+msgid "ipset"
+msgstr "ipset"
+
+msgid "Enable IPv6"
+msgstr "Enable IPv6"
+
+msgid "Prefix Limit"
+msgstr "Prefix Limit"
+
+msgid "Update Interval"
+msgstr "Update Interval"
+
+msgid "Fallback Strategy"
+msgstr "Fallback Strategy"
+
+msgid "Sequential"
+msgstr "Sequential"
+
+msgid "Parallel"
+msgstr "Parallel"
+
+msgid "Cache Only"
+msgstr "Cache Only"
