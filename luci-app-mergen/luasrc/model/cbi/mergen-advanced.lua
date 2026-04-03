@@ -1,60 +1,135 @@
--- Mergen Advanced Settings CBI Model
+-- Mergen Advanced Settings CBI Model (PRD Section 8.7)
 -- UCI-bound form for global/advanced configuration
 -- Maps to mergen.global UCI section
 
-m = Map("mergen", translate("Mergen Advanced Settings"),
-	translate("Configure routing table, packet engine, IPv6, limits and update settings."))
+local util = require "luci.util"
 
--- Global section (NamedSection targets the specific "global" section)
+m = Map("mergen", translate("Mergen Advanced Settings"),
+	translate("Routing table, packet engine, IPv6, performance limits, "
+	.. "security and maintenance settings."))
+
+-- ══════════════════════════════════════════════════════════
+-- Global Section
+-- ══════════════════════════════════════════════════════════
+
 s = m:section(NamedSection, "global", "global", translate("Global Settings"))
 s.addremove = false
 
--- Enabled
+-- Master enable
 en = s:option(Flag, "enabled", translate("Enabled"))
 en.default = "1"
 en.rmempty = false
 
--- Routing table number
-rt = s:option(Value, "default_table", translate("Routing Table"))
+-- ── Routing Table Settings ─────────────────────────────
+
+s:tab("routing", translate("Routing"))
+
+rt = s:taboption("routing", Value, "default_table",
+	translate("Routing Table Number"))
 rt.default = "100"
 rt.datatype = "range(1,252)"
 rt.placeholder = "100"
 
--- Packet matching engine
-se = s:option(ListValue, "set_type", translate("Packet Engine"))
-se:value("nftables", translate("nftables"))
-se:value("ipset", translate("ipset"))
+rp = s:taboption("routing", Value, "rule_priority_start",
+	translate("ip rule Priority Start"))
+rp.default = "100"
+rp.datatype = "range(1,32000)"
+rp.placeholder = "100"
+
+-- ── Packet Engine ──────────────────────────────────────
+
+s:tab("engine", translate("Packet Engine"))
+
+se = s:taboption("engine", ListValue, "set_type",
+	translate("Packet Matching Engine"))
+se:value("nftables", translate("nftables") .. " (" .. translate("recommended") .. ")")
+se:value("ipset", translate("ipset") .. " (" .. translate("legacy") .. ")")
 se.default = "nftables"
 
--- IPv6 toggle
-v6 = s:option(Flag, "ipv6_enabled", translate("Enable IPv6"))
+-- ── IPv6 ───────────────────────────────────────────────
+
+s:tab("ipv6", translate("IPv6"))
+
+v6 = s:taboption("ipv6", Flag, "ipv6_enabled",
+	translate("Enable IPv6"))
 v6.default = "0"
 
--- Prefix limit
-pl = s:option(Value, "prefix_limit", translate("Prefix Limit"))
+v6t = s:taboption("ipv6", ListValue, "ipv6_table_mode",
+	translate("IPv6 Table Mode"))
+v6t:value("shared", translate("Shared table with IPv4"))
+v6t:value("separate", translate("Separate IPv6 table"))
+v6t.default = "shared"
+v6t:depends("ipv6_enabled", "1")
+
+-- ── Performance ────────────────────────────────────────
+
+s:tab("performance", translate("Performance"))
+
+pl = s:taboption("performance", Value, "prefix_limit",
+	translate("Max Prefix Limit (per rule)"))
 pl.default = "10000"
 pl.datatype = "uinteger"
 pl.placeholder = "10000"
 
--- Update interval (seconds)
-ui = s:option(Value, "update_interval", translate("Update Interval"))
+tl = s:taboption("performance", Value, "total_prefix_limit",
+	translate("Total Prefix Limit (all rules)"))
+tl.default = "50000"
+tl.datatype = "uinteger"
+tl.placeholder = "50000"
+
+ui = s:taboption("performance", Value, "update_interval",
+	translate("Update Interval (seconds)"))
 ui.default = "86400"
 ui.datatype = "uinteger"
 ui.placeholder = "86400"
 
--- Fallback strategy
-fs = s:option(ListValue, "fallback_strategy", translate("Fallback Strategy"))
-fs:value("sequential", translate("Sequential"))
-fs:value("parallel", translate("Parallel"))
-fs:value("cache_only", translate("Cache Only"))
-fs.default = "sequential"
+at = s:taboption("performance", Value, "api_timeout",
+	translate("API Timeout (seconds)"))
+at.default = "30"
+at.datatype = "range(1,120)"
+at.placeholder = "30"
 
--- Log level
-ll = s:option(ListValue, "log_level", translate("Log Level"))
+pq = s:taboption("performance", Value, "parallel_queries",
+	translate("Parallel Query Limit"))
+pq.default = "2"
+pq.datatype = "range(1,10)"
+pq.placeholder = "2"
+
+-- ── Security ───────────────────────────────────────────
+
+s:tab("security", translate("Security"))
+
+wt = s:taboption("security", Value, "watchdog_timeout",
+	translate("Rollback Watchdog Timeout (seconds)"))
+wt.default = "60"
+wt.datatype = "range(10,600)"
+wt.placeholder = "60"
+
+pt = s:taboption("security", Value, "ping_target",
+	translate("Safe Mode Ping Target"))
+pt.default = "8.8.8.8"
+pt.datatype = "string"
+pt.placeholder = "8.8.8.8"
+
+-- ── Logging ────────────────────────────────────────────
+
+s:tab("logging", translate("Logging"))
+
+ll = s:taboption("logging", ListValue, "log_level",
+	translate("Log Level"))
 ll:value("debug", "Debug")
 ll:value("info", "Info")
 ll:value("warning", "Warning")
 ll:value("error", "Error")
 ll.default = "info"
+
+-- ══════════════════════════════════════════════════════════
+-- Maintenance Actions (SimpleSection for buttons)
+-- ══════════════════════════════════════════════════════════
+
+mt = m:section(SimpleSection, nil,
+	translate("Maintenance operations for Mergen system."))
+
+mt.template = "mergen/advanced-maintenance"
 
 return m

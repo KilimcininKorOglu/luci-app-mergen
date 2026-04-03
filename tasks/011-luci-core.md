@@ -121,7 +121,7 @@ Rule listing, adding, editing, deleting and validation. Core functionality of PR
 
 ### T037 - Provider Settings & Advanced Settings Pages (Basic)
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 2.5 days
 

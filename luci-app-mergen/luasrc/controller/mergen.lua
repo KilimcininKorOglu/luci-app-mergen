@@ -44,6 +44,9 @@ function index()
 
 	entry({"admin", "services", "mergen", "rpc", "restart"},
 		post("rpc_restart")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "validate"},
+		call("rpc_validate")).leaf = true
 end
 
 -- Helper: execute mergen CLI command and return output
@@ -141,5 +144,14 @@ function rpc_restart()
 	json_response({
 		success = true,
 		output = "Daemon restarted"
+	})
+end
+
+-- RPC: Validate configuration
+function rpc_validate()
+	local output = mergen_exec("validate --check-providers")
+	json_response({
+		success = true,
+		output = output
 	})
 end

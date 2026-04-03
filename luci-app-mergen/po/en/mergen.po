@@ -159,3 +159,81 @@ msgstr "Rules define which traffic should be routed through which interface. Eac
 
 msgid "Manage ASN/IP based policy routing rules. Rules define which traffic is routed through which interface."
 msgstr "Manage ASN/IP based policy routing rules. Rules define which traffic is routed through which interface."
+
+msgid "Whois Server"
+msgstr "Whois Server"
+
+msgid "DB Path"
+msgstr "DB Path"
+
+msgid "General Provider Settings"
+msgstr "General Provider Settings"
+
+msgid "Cache TTL (seconds)"
+msgstr "Cache TTL (seconds)"
+
+msgid "Routing"
+msgstr "Routing"
+
+msgid "ip rule Priority Start"
+msgstr "ip rule Priority Start"
+
+msgid "Packet Matching Engine"
+msgstr "Packet Matching Engine"
+
+msgid "recommended"
+msgstr "recommended"
+
+msgid "legacy"
+msgstr "legacy"
+
+msgid "IPv6 Table Mode"
+msgstr "IPv6 Table Mode"
+
+msgid "Shared table with IPv4"
+msgstr "Shared table with IPv4"
+
+msgid "Separate IPv6 table"
+msgstr "Separate IPv6 table"
+
+msgid "Performance"
+msgstr "Performance"
+
+msgid "Max Prefix Limit (per rule)"
+msgstr "Max Prefix Limit (per rule)"
+
+msgid "Total Prefix Limit (all rules)"
+msgstr "Total Prefix Limit (all rules)"
+
+msgid "API Timeout (seconds)"
+msgstr "API Timeout (seconds)"
+
+msgid "Parallel Query Limit"
+msgstr "Parallel Query Limit"
+
+msgid "Security"
+msgstr "Security"
+
+msgid "Rollback Watchdog Timeout (seconds)"
+msgstr "Rollback Watchdog Timeout (seconds)"
+
+msgid "Safe Mode Ping Target"
+msgstr "Safe Mode Ping Target"
+
+msgid "Logging"
+msgstr "Logging"
+
+msgid "Maintenance"
+msgstr "Maintenance"
+
+msgid "Flush All Routes"
+msgstr "Flush All Routes"
+
+msgid "Backup Config"
+msgstr "Backup Config"
+
+msgid "Validate Config"
+msgstr "Validate Config"
+
+msgid "This will remove all Mergen routes and sets. Continue?"
+msgstr "This will remove all Mergen routes and sets. Continue?"

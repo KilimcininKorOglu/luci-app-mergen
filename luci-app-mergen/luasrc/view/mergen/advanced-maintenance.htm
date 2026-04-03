@@ -1,0 +1,61 @@
+<link rel="stylesheet" href="<%=resource%>/mergen/mergen.css" />
+
+<h3><%:Maintenance%></h3>
+
+<div class="mergen-actions">
+	<button class="cbi-button cbi-button-reset" id="mergen-flush-btn">
+		<%:Flush All Routes%>
+	</button>
+
+	<button class="cbi-button cbi-button-action" id="mergen-backup-btn">
+		<%:Backup Config%>
+	</button>
+
+	<button class="cbi-button cbi-button-neutral" id="mergen-validate-btn">
+		<%:Validate Config%>
+	</button>
+</div>
+
+<div id="mergen-maintenance-output" class="mergen-log" style="display:none; margin-top:1rem"></div>
+
+<script src="<%=resource%>/mergen/mergen.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+	var outputEl = document.getElementById('mergen-maintenance-output');
+
+	function showOutput(text) {
+		outputEl.textContent = text;
+		outputEl.style.display = 'block';
+	}
+
+	document.getElementById('mergen-flush-btn').addEventListener('click', function(e) {
+		e.preventDefault();
+		if (!confirm('<%:This will remove all Mergen routes and sets. Continue?%>')) return;
+		MergenUI.rpcCall('flush', {}).then(function(data) {
+			showOutput(data.output || 'Flush completed');
+		}).catch(function(err) {
+			showOutput('Error: ' + err.message);
+		});
+	});
+
+	document.getElementById('mergen-backup-btn').addEventListener('click', function(e) {
+		e.preventDefault();
+		/* Trigger UCI config download */
+		window.location.href = '/cgi-bin/luci/admin/system/flashops/backupfiles?backup=/etc/config/mergen';
+	});
+
+	document.getElementById('mergen-validate-btn').addEventListener('click', function(e) {
+		e.preventDefault();
+		this.disabled = true;
+		var btn = this;
+		MergenUI.rpcCall('validate', {}).then(function(data) {
+			btn.disabled = false;
+			showOutput(data.output || 'Validation completed');
+		}).catch(function(err) {
+			btn.disabled = false;
+			showOutput('Error: ' + err.message);
+		});
+	});
+});
+</script>

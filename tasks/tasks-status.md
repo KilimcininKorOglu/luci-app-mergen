@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 12    | 24%        |
+| NOT_STARTED | 11    | 22%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 37    | 76%        |
+| COMPLETED   | 38    | 78%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -29,7 +29,7 @@
 | F008    | Multi-Provider System           | Phase 3 | 4     | NOT_STARTED |
 | F009    | IPv6 & Advanced Rule Engine     | Phase 3 | 3     | COMPLETED   |
 | F010    | Import/Export & Automation      | Phase 3 | 4     | COMPLETED   |
-| F011    | LuCI Core Pages                 | Phase 4 | 4     | NOT_STARTED |
+| F011    | LuCI Core Pages                 | Phase 4 | 4     | COMPLETED   |
 | F012    | LuCI Advanced Pages             | Phase 5 | 4     | NOT_STARTED |
 | F013    | Advanced Features               | Phase 6 | 4     | NOT_STARTED |
 | F014    | Distribution & QA               | Phase 6 | 3     | NOT_STARTED |
@@ -92,7 +92,7 @@
 | T034 | F011    | LuCI Package Scaffold & RPC      | P2       | 2.5d   | COMPLETED   | T010         |
 | T035 | F011    | Overview Page                     | P2       | 2d     | COMPLETED   | T034         |
 | T036 | F011    | Rules Page (Basic CRUD)           | P2       | 3d     | COMPLETED   | T034         |
-| T037 | F011    | Provider & Advanced Settings      | P3       | 2.5d   | NOT_STARTED | T034         |
+| T037 | F011    | Provider & Advanced Settings      | P3       | 2.5d   | COMPLETED   | T034         |
 
 ### Phase 5: LuCI Advanced Pages (4 tasks)
 

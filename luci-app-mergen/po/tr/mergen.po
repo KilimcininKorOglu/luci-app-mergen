@@ -159,3 +159,81 @@ msgstr "Kurallar hangi trafigin hangi arayuzden yonlendirilecegini belirler. Her
 
 msgid "Manage ASN/IP based policy routing rules. Rules define which traffic is routed through which interface."
 msgstr "ASN/IP tabanli politika yonlendirme kurallarini yonetin. Kurallar hangi trafigin hangi arayuzden yonlendirilecegini belirler."
+
+msgid "Whois Server"
+msgstr "Whois Sunucu"
+
+msgid "DB Path"
+msgstr "Veritabani Yolu"
+
+msgid "General Provider Settings"
+msgstr "Genel Saglayici Ayarlari"
+
+msgid "Cache TTL (seconds)"
+msgstr "Onbellek Suresi (saniye)"
+
+msgid "Routing"
+msgstr "Yonlendirme"
+
+msgid "ip rule Priority Start"
+msgstr "ip rule Oncelik Baslangici"
+
+msgid "Packet Matching Engine"
+msgstr "Paket Eslestirme Motoru"
+
+msgid "recommended"
+msgstr "onerilen"
+
+msgid "legacy"
+msgstr "eski"
+
+msgid "IPv6 Table Mode"
+msgstr "IPv6 Tablo Modu"
+
+msgid "Shared table with IPv4"
+msgstr "IPv4 ile ortak tablo"
+
+msgid "Separate IPv6 table"
+msgstr "Ayri IPv6 tablosu"
+
+msgid "Performance"
+msgstr "Performans"
+
+msgid "Max Prefix Limit (per rule)"
+msgstr "Maks Prefix Limiti (kural basina)"
+
+msgid "Total Prefix Limit (all rules)"
+msgstr "Toplam Prefix Limiti (tum kurallar)"
+
+msgid "API Timeout (seconds)"
+msgstr "API Zaman Asimi (saniye)"
+
+msgid "Parallel Query Limit"
+msgstr "Paralel Sorgu Limiti"
+
+msgid "Security"
+msgstr "Guvenlik"
+
+msgid "Rollback Watchdog Timeout (seconds)"
+msgstr "Geri Alma Watchdog Suresi (saniye)"
+
+msgid "Safe Mode Ping Target"
+msgstr "Guvenli Mod Ping Hedefi"
+
+msgid "Logging"
+msgstr "Loglama"
+
+msgid "Maintenance"
+msgstr "Bakim"
+
+msgid "Flush All Routes"
+msgstr "Tum Rotalari Temizle"
+
+msgid "Backup Config"
+msgstr "Yapilandirmayi Yedekle"
+
+msgid "Validate Config"
+msgstr "Yapilandirmayi Dogrula"
+
+msgid "This will remove all Mergen routes and sets. Continue?"
+msgstr "Bu tum Mergen rotalarini ve setlerini silecek. Devam edilsin mi?"
