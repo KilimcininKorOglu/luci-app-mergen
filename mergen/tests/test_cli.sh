@@ -567,6 +567,54 @@ test_help_unknown_command() {
 	assertNotEquals "Help unknown returns 1" 0 $?
 }
 
+# ── cmd_validate Tests ──────────────────────────────────
+
+test_validate_empty() {
+	local output
+	output="$(cmd_validate 2>/dev/null)"
+	assertEquals "Validate empty succeeds" 0 $?
+	echo "$output" | grep -q "Kayitli kural yok"
+	assertEquals "Shows no rules message" 0 $?
+}
+
+test_validate_valid_rules() {
+	cmd_add --name valid-asn --asn 13335 --via wg0 2>/dev/null
+	cmd_add --name valid-ip --ip 10.0.0.0/8 --via lan 2>/dev/null
+
+	local output
+	output="$(cmd_validate 2>/dev/null)"
+	assertEquals "Validate valid config succeeds" 0 $?
+	echo "$output" | grep -q "2 kural"
+	assertEquals "Shows validated count" 0 $?
+}
+
+test_validate_invalid_rule() {
+	# Manually create a rule with invalid data
+	_MOCK_SECTION_COUNTER=$((_MOCK_SECTION_COUNTER + 1))
+	local sid="cfg$(printf '%03d' $_MOCK_SECTION_COUNTER)"
+	_MOCK_FOREACH_SECTIONS="${_MOCK_FOREACH_SECTIONS} ${sid}"
+	_mock_uci_set "mergen.${sid}.name=bad-rule"
+	_mock_uci_set "mergen.${sid}.via=wg0"
+	_mock_uci_set "mergen.${sid}.priority=100"
+	_mock_uci_set "mergen.${sid}.enabled=1"
+	# No asn or ip — type is undefined
+
+	cmd_validate 2>/dev/null
+	assertNotEquals "Validate invalid config fails" 0 $?
+}
+
+test_validate_unknown_option() {
+	cmd_validate --bogus 2>/dev/null
+	assertEquals "Unknown option returns 2" 2 $?
+}
+
+test_help_validate() {
+	local output
+	output="$(cmd_help validate 2>/dev/null)"
+	echo "$output" | grep -q "\-\-check-providers"
+	assertEquals "Help validate shows --check-providers" 0 $?
+}
+
 # ── Integration: add -> list -> show -> remove ──────────
 
 test_full_lifecycle() {

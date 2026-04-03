@@ -34,6 +34,7 @@ Komutlar:
   disable    Kurali devre disi birak
   apply      Kurallari sisteme uygula
   status     Servis ve kural durumunu goster
+  validate   Yapilandirmayi dogrula (uygulamadan)
   version    Surum bilgisi goster
   help       Bu yardimi veya komut yardimini goster
 
@@ -137,6 +138,22 @@ HELP
 Kullanim: mergen status
 
 Mergen servis durumunu, kural sayilarini ve onbellek istatistiklerini gosterir.
+HELP
+			;;
+		validate)
+			cat <<'HELP'
+Kullanim: mergen validate [--check-providers]
+
+UCI yapilandirmasini dogrular (sisteme uygulamadan).
+
+Kontroller:
+  - Kural adi gecerliligi
+  - ASN/IP hedef formati
+  - Arayuz adi gecerliligi
+  - Oncelik degeri araligi
+
+Secenekler:
+  --check-providers    Provider baglanti testini de calistir
 HELP
 			;;
 		version)
@@ -462,6 +479,112 @@ cmd_status() {
 	fi
 }
 
+# ── Validate ───────────────────────────────────────────────
+
+cmd_validate() {
+	local check_providers=0
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--check-providers) check_providers=1; shift ;;
+			*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'. 'mergen help validate' ile kullanimi gorun.\n" "$1" >&2
+				return 2
+				;;
+		esac
+	done
+
+	echo "[*] Yapilandirma dogrulaniyor..."
+
+	local valid_count=0 error_count=0
+
+	_validate_rule_cb() {
+		local section="$1"
+		local name via priority enabled asn_val ip_val
+		local rule_ok=1
+
+		config_get name "$section" "name" ""
+		config_get via "$section" "via" ""
+		config_get priority "$section" "priority" "100"
+		config_get enabled "$section" "enabled" "1"
+		config_get asn_val "$section" "asn" ""
+		config_get ip_val "$section" "ip" ""
+
+		local display_name="${name:-$section}"
+
+		# Check name
+		if [ -z "$name" ]; then
+			printf "[!] %s: Kural adi bos\n" "$section" >&2
+			rule_ok=0
+		elif ! validate_name "$name"; then
+			printf "[!] %s: %s\n" "$display_name" "$MERGEN_VALIDATE_ERR" >&2
+			rule_ok=0
+		fi
+
+		# Check type and targets
+		if [ -n "$asn_val" ]; then
+			local item
+			for item in $asn_val; do
+				if ! validate_asn "$item"; then
+					printf "[!] %s: %s\n" "$display_name" "$MERGEN_VALIDATE_ERR" >&2
+					rule_ok=0
+				fi
+			done
+		elif [ -n "$ip_val" ]; then
+			local item
+			for item in $ip_val; do
+				if ! validate_ip_cidr "$item"; then
+					printf "[!] %s: %s\n" "$display_name" "$MERGEN_VALIDATE_ERR" >&2
+					rule_ok=0
+				fi
+			done
+		else
+			printf "[!] %s: Kural tipi belirsiz (asn veya ip degeri yok)\n" "$display_name" >&2
+			rule_ok=0
+		fi
+
+		# Check via
+		if [ -z "$via" ]; then
+			printf "[!] %s: Arayuz (via) belirtilmemis\n" "$display_name" >&2
+			rule_ok=0
+		fi
+
+		# Check priority
+		if ! validate_priority "$priority"; then
+			printf "[!] %s: %s\n" "$display_name" "$MERGEN_VALIDATE_ERR" >&2
+			rule_ok=0
+		fi
+
+		if [ "$rule_ok" -eq 1 ]; then
+			valid_count=$((valid_count + 1))
+		else
+			error_count=$((error_count + 1))
+		fi
+	}
+
+	mergen_list_rules _validate_rule_cb
+
+	# Check providers if requested
+	if [ "$check_providers" -eq 1 ]; then
+		echo ""
+		echo "[*] Provider baglantilari test ediliyor..."
+		mergen_provider_test_all
+	fi
+
+	echo ""
+	if [ "$error_count" -eq 0 ]; then
+		if [ "$valid_count" -eq 0 ]; then
+			echo "[OK] Kayitli kural yok"
+		else
+			printf "[OK] Yapilandirma gecerli (%s kural dogrulandi)\n" "$valid_count"
+		fi
+		return 0
+	else
+		printf "[!] %s kural hatali, %s kural gecerli\n" "$error_count" "$valid_count" >&2
+		return 1
+	fi
+}
+
 # ── Main Dispatch ──────────────────────────────────────────
 # Guard: skip dispatch when sourced for testing (MERGEN_SOURCED=1)
 
@@ -490,6 +613,9 @@ if [ "${MERGEN_SOURCED:-0}" != "1" ]; then
 			;;
 		status)
 			shift; cmd_status "$@"
+			;;
+		validate)
+			shift; cmd_validate "$@"
 			;;
 		version)
 			cmd_version

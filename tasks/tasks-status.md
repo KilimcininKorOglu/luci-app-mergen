@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 39    | 80%        |
+| NOT_STARTED | 38    | 78%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 10    | 20%        |
+| COMPLETED   | 11    | 22%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -50,7 +50,7 @@
 | T008 | F003    | Policy Routing (ip rule/route)    | P1       | 2.5d   | COMPLETED   | T003, T007   |
 | T009 | F003    | Input Validation Library          | P1       | 1d     | COMPLETED   | T001         |
 | T010 | F004    | Core CLI Commands                 | P1       | 3d     | COMPLETED   | T003-T009    |
-| T011 | F004    | Utility CLI (version/help/valid.) | P2       | 1d     | NOT_STARTED | T010         |
+| T011 | F004    | Utility CLI (version/help/valid.) | P2       | 1d     | COMPLETED   | T010         |
 | T012 | F004    | Watchdog Daemon                   | P2       | 2d     | NOT_STARTED | T001, T003   |
 | T013 | F004    | Unit Test Framework & Tests       | P2       | 1.5d   | NOT_STARTED | T003-T009    |
 | T048 | F001    | Config Migration Script           | P2       | 1d     | NOT_STARTED | T002, T003   |

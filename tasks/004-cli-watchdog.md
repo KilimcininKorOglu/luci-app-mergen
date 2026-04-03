@@ -46,7 +46,7 @@ Mergen CLI main script and core commands: add, remove, list, apply, status.
 
 ### T011 - Utility CLI Commands
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 1 day
 
