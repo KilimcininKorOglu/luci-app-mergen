@@ -1,0 +1,51 @@
+#!/bin/sh
+# Mergen Watchdog Daemon
+# Lightweight procd-managed daemon for periodic tasks and event handling
+
+MERGEN_LIB_DIR="/usr/lib/mergen"
+MERGEN_TMP="/tmp/mergen"
+MERGEN_STATUS="${MERGEN_TMP}/status.json"
+MERGEN_LOCK="/var/lock/mergen.lock"
+
+. "${MERGEN_LIB_DIR}/core.sh"
+
+# Ensure temp directories exist
+[ -d "$MERGEN_TMP" ] || mkdir -p "$MERGEN_TMP"
+[ -d "${MERGEN_TMP}/cache" ] || mkdir -p "${MERGEN_TMP}/cache"
+
+write_status() {
+	local now
+	now="$(date -Iseconds 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S')"
+	cat > "$MERGEN_STATUS" <<-EOF
+	{
+		"daemon": "running",
+		"pid": $$,
+		"started": "${WATCHDOG_STARTED}",
+		"last_check": "${now}",
+		"uptime_seconds": $(( $(date +%s) - WATCHDOG_START_TS ))
+	}
+	EOF
+}
+
+cleanup() {
+	mergen_log "info" "Daemon" "Watchdog stopping (PID $$)"
+	rm -f "$MERGEN_STATUS"
+	exit 0
+}
+
+trap cleanup INT TERM
+
+WATCHDOG_STARTED="$(date -Iseconds 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S')"
+WATCHDOG_START_TS="$(date +%s)"
+
+mergen_log "info" "Daemon" "Watchdog started (PID $$)"
+
+# Read watchdog interval from UCI
+mergen_uci_get "global" "watchdog_interval" "60"
+interval="$MERGEN_UCI_RESULT"
+
+# Main loop
+while true; do
+	write_status
+	sleep "$interval"
+done

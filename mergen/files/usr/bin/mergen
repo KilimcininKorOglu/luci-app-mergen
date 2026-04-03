@@ -1,0 +1,82 @@
+#!/bin/sh
+# Mergen — ASN/IP based policy routing for OpenWrt
+# Main CLI entry point
+
+MERGEN_VERSION="0.1.0"
+MERGEN_LIB_DIR="/usr/lib/mergen"
+MERGEN_CONF="mergen"
+MERGEN_LOCK="/var/lock/mergen.lock"
+MERGEN_TMP="/tmp/mergen"
+
+# Load core library
+. "${MERGEN_LIB_DIR}/core.sh"
+
+# Ensure temp directory exists
+[ -d "$MERGEN_TMP" ] || mkdir -p "$MERGEN_TMP"
+[ -d "${MERGEN_TMP}/cache" ] || mkdir -p "${MERGEN_TMP}/cache"
+
+usage() {
+	cat <<-'USAGE'
+	Usage: mergen <command> [options]
+
+	Commands:
+	  add        Add a new routing rule
+	  remove     Remove a routing rule
+	  list       List all routing rules
+	  apply      Apply pending rules to the system
+	  status     Show daemon and rule status
+	  version    Show version information
+	  help       Show this help or command-specific help
+
+	Run 'mergen help <command>' for command-specific help.
+	USAGE
+}
+
+cmd_version() {
+	local openwrt_release=""
+	[ -f /etc/openwrt_release ] && . /etc/openwrt_release
+	printf "Mergen v%s" "$MERGEN_VERSION"
+	[ -n "$DISTRIB_RELEASE" ] && printf " | OpenWrt %s" "$DISTRIB_RELEASE"
+	printf "\n"
+}
+
+cmd_help() {
+	local subcmd="$1"
+	case "$subcmd" in
+		"")
+			usage
+			;;
+		version)
+			echo "Usage: mergen version"
+			echo ""
+			echo "Display Mergen version and OpenWrt release information."
+			;;
+		help)
+			echo "Usage: mergen help [command]"
+			echo ""
+			echo "Show help for a specific command, or general help if no command given."
+			;;
+		*)
+			echo "[!] Error: Unknown command '$subcmd'. Run 'mergen help' for available commands."
+			return 1
+			;;
+	esac
+}
+
+# Main command dispatch
+case "${1:-help}" in
+	version)
+		cmd_version
+		;;
+	help)
+		shift
+		cmd_help "$@"
+		;;
+	-h|--help)
+		usage
+		;;
+	*)
+		echo "[!] Error: Unknown command '$1'. Run 'mergen help' for available commands."
+		exit 1
+		;;
+esac

@@ -1,0 +1,21 @@
+#!/bin/sh
+
+# Mergen hotplug handler for interface up/down events
+# Called by netifd when interface state changes
+# Full implementation in T032 — Hotplug Integration
+
+[ -f /usr/lib/mergen/core.sh ] || exit 0
+
+. /usr/lib/mergen/core.sh
+
+mergen_uci_get "global" "enabled" "0"
+[ "$MERGEN_UCI_RESULT" = "1" ] || exit 0
+
+case "$ACTION" in
+	ifup)
+		mergen_log "info" "Hotplug" "Interface $INTERFACE came up"
+		;;
+	ifdown)
+		mergen_log "info" "Hotplug" "Interface $INTERFACE went down"
+		;;
+esac
