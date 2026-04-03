@@ -47,7 +47,7 @@ Loading rules from a JSON file and exporting existing rules as JSON.
 
 ### T031 - Cron Auto-Update & mergen update
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 1.5 days
 
