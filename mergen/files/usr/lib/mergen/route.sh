@@ -170,6 +170,19 @@ ${MERGEN_RESOLVE_RESULT_V4}"
 	# Count prefixes
 	local prefix_count
 	prefix_count="$(echo "$prefix_list" | wc -l | tr -d ' ')"
+
+	# Check prefix limits (unless --force is active)
+	if [ "${MERGEN_FORCE_APPLY:-0}" != "1" ]; then
+		if ! mergen_check_prefix_limit "$rule_name" "$prefix_count"; then
+			mergen_log "error" "Route" "$MERGEN_PREFIX_LIMIT_ERR"
+			return 1
+		fi
+		if ! mergen_check_prefix_total "$prefix_count"; then
+			mergen_log "error" "Route" "$MERGEN_PREFIX_LIMIT_ERR"
+			return 1
+		fi
+	fi
+
 	mergen_log "info" "Route" "${prefix_count} prefix uygulanıyor..."
 
 	# Apply routes for each prefix

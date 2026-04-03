@@ -83,6 +83,7 @@ flock() { return 0; }
 # ── Source modules under test ───────────────────────────
 
 . "${MERGEN_ROOT}/files/usr/lib/mergen/core.sh"
+. "${MERGEN_ROOT}/files/usr/lib/mergen/utils.sh"
 . "${MERGEN_ROOT}/files/usr/lib/mergen/resolver.sh"
 
 # ── Helper: Create mock provider ────────────────────────

@@ -285,6 +285,14 @@ _mergen_try_provider() {
 	# Get provider config
 	mergen_get_provider "$prov_name"
 
+	# Enforce HTTPS on provider URL
+	if [ -n "$MERGEN_PROVIDER_URL" ]; then
+		if ! validate_url_https "$MERGEN_PROVIDER_URL"; then
+			mergen_log "error" "Resolver" "$MERGEN_VALIDATE_ERR"
+			return 1
+		fi
+	fi
+
 	# Call provider_resolve, capture v4 on stdout, v6 on fd 3
 	if _mergen_provider_call "$prov_name" "provider_resolve" "$asn" \
 		>"$tmpfile_v4" 3>"$tmpfile_v6"; then

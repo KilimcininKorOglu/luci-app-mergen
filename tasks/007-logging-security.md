@@ -77,7 +77,7 @@ Phase 2 additional CLI commands: show, enable/disable, flush, diag, log.
 
 ### T021 - Security Hardening
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 1.5 days
 

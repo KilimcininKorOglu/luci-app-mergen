@@ -109,6 +109,24 @@ mergen_log_query() {
 	eval "$cmd" 2>/dev/null
 }
 
+# ── Security: File Permissions ──────────────────────────
+
+# Ensure UCI config file has restrictive permissions (0600)
+# Called at startup to prevent unauthorized read of routing rules
+mergen_ensure_permissions() {
+	local config_file="/etc/config/${MERGEN_CONF}"
+
+	if [ -f "$config_file" ]; then
+		local current_perms
+		current_perms="$(stat -c '%a' "$config_file" 2>/dev/null || stat -f '%Lp' "$config_file" 2>/dev/null)"
+
+		if [ "$current_perms" != "600" ]; then
+			chmod 0600 "$config_file" 2>/dev/null
+			mergen_log "info" "Core" "Config dosya izinleri 0600 olarak ayarlandi."
+		fi
+	fi
+}
+
 # ── UCI Wrappers ─────────────────────────────────────────
 
 mergen_uci_get() {

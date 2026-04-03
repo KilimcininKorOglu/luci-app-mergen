@@ -243,6 +243,52 @@ test_sanitize_dangerous_inputs() {
 	assertNotEquals "Single quote" 0 $?
 }
 
+# ── URL HTTPS Validation Tests ──────────────────────────
+
+test_validate_url_https_valid() {
+	validate_url_https "https://stat.ripe.net/data/api.json"
+	assertEquals "HTTPS URL valid" 0 $?
+
+	validate_url_https "https://example.com"
+	assertEquals "Simple HTTPS valid" 0 $?
+}
+
+test_validate_url_https_rejects_http() {
+	validate_url_https "http://stat.ripe.net/data/api.json"
+	assertNotEquals "HTTP URL rejected" 0 $?
+	echo "$MERGEN_VALIDATE_ERR" | grep -q "HTTPS"
+	assertEquals "Error mentions HTTPS" 0 $?
+}
+
+test_validate_url_https_rejects_empty() {
+	validate_url_https ""
+	assertNotEquals "Empty URL rejected" 0 $?
+}
+
+test_validate_url_https_rejects_invalid() {
+	validate_url_https "ftp://example.com"
+	assertNotEquals "FTP URL rejected" 0 $?
+}
+
+# ── Prefix Limit Tests ─────────────────────────────────
+
+test_prefix_limit_within() {
+	mergen_check_prefix_limit "test-rule" 500
+	assertEquals "500 prefixes within default limit" 0 $?
+}
+
+test_prefix_limit_exceeded() {
+	mergen_check_prefix_limit "test-rule" 20000
+	assertNotEquals "20000 exceeds default 10000 limit" 0 $?
+	echo "$MERGEN_PREFIX_LIMIT_ERR" | grep -q "force"
+	assertEquals "Error mentions --force" 0 $?
+}
+
+test_prefix_limit_exact_boundary() {
+	mergen_check_prefix_limit "test-rule" 10000
+	assertEquals "Exactly at limit is OK" 0 $?
+}
+
 # ── Load shunit2 ─────────────────────────────────────────
 
 # Find shunit2 — check local vendored copy first, then system

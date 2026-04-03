@@ -21,6 +21,91 @@ mergen_sanitize_input() {
 	return 0
 }
 
+# ── Prefix Limit Checks ─────────────────────────────────
+
+# Check per-rule prefix limit
+# Returns 0 if within limit, 1 if over limit
+# Sets MERGEN_PREFIX_LIMIT_ERR on failure
+MERGEN_PREFIX_LIMIT_ERR=""
+
+mergen_check_prefix_limit() {
+	local rule_name="$1"
+	local prefix_count="$2"
+	MERGEN_PREFIX_LIMIT_ERR=""
+
+	# Read per-rule limit from UCI
+	mergen_uci_get "global" "max_prefix_per_rule" "10000"
+	local max_per_rule="$MERGEN_UCI_RESULT"
+
+	if [ "$prefix_count" -gt "$max_per_rule" ] 2>/dev/null; then
+		MERGEN_PREFIX_LIMIT_ERR="[!] Hata: '${rule_name}' icin ${prefix_count} prefix, limit: ${max_per_rule}. --force ile zorlayabilirsiniz."
+		return 1
+	fi
+
+	return 0
+}
+
+# Check total prefix limit across all rules
+# Returns 0 if within limit, 1 if over limit
+# Sets MERGEN_PREFIX_LIMIT_ERR on failure
+mergen_check_prefix_total() {
+	local new_count="$1"
+	MERGEN_PREFIX_LIMIT_ERR=""
+
+	# Read total limit from UCI
+	mergen_uci_get "global" "max_prefix_total" "50000"
+	local max_total="$MERGEN_UCI_RESULT"
+
+	# Count existing prefixes from managed tables
+	local existing_count=0
+	mergen_uci_get "global" "default_table" "100"
+	local table_start="$MERGEN_UCI_RESULT"
+	local table_end=$((table_start + 999))
+	local tbl
+
+	for tbl in $(seq "$table_start" "$table_end"); do
+		local count
+		count="$(ip route show table "$tbl" 2>/dev/null | wc -l | tr -d ' ')"
+		existing_count=$((existing_count + count))
+	done
+
+	local total=$((existing_count + new_count))
+
+	if [ "$total" -gt "$max_total" ] 2>/dev/null; then
+		MERGEN_PREFIX_LIMIT_ERR="[!] Hata: Toplam prefix sayisi (${total}) limiti (${max_total}) asiyor. --force ile zorlayabilirsiniz."
+		return 1
+	fi
+
+	return 0
+}
+
+# Validate URL uses HTTPS protocol
+# Returns 0 if HTTPS, 1 if not
+# Sets MERGEN_VALIDATE_ERR on failure
+validate_url_https() {
+	local url="$1"
+	MERGEN_VALIDATE_ERR=""
+
+	if [ -z "$url" ]; then
+		MERGEN_VALIDATE_ERR="[!] Hata: URL bos olamaz."
+		return 1
+	fi
+
+	case "$url" in
+		https://*)
+			return 0
+			;;
+		http://*)
+			MERGEN_VALIDATE_ERR="[!] Hata: HTTP URL'ler guvenlik nedeniyle reddedildi. HTTPS kullanin: ${url}"
+			return 1
+			;;
+		*)
+			MERGEN_VALIDATE_ERR="[!] Hata: Gecersiz URL protokolu. HTTPS gerekli: ${url}"
+			return 1
+			;;
+	esac
+}
+
 # ── ASN Validation ───────────────────────────────────────
 
 # Validate ASN number: numeric, range 1-4294967295

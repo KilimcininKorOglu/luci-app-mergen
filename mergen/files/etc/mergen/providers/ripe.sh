@@ -107,8 +107,17 @@ _ripe_http_get() {
 	local url="$1"
 	local timeout="$2"
 
+	# Enforce HTTPS — reject plain HTTP URLs
+	case "$url" in
+		https://*) ;;
+		http://*)
+			mergen_log "error" "RIPE" "HTTP reddedildi, HTTPS gerekli: ${url}"
+			return 1
+			;;
+	esac
+
 	if command -v curl >/dev/null 2>&1; then
-		curl -s --max-time "$timeout" \
+		curl -s --proto '=https' --max-time "$timeout" \
 			-H "Accept: application/json" \
 			"$url" 2>/dev/null
 	elif command -v wget >/dev/null 2>&1; then

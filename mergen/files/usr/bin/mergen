@@ -19,6 +19,9 @@ type mergen_route_apply >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/route.sh"
 # Ensure temp directories exist
 [ -d "$MERGEN_TMP" ] || mkdir -p "$MERGEN_TMP"
 
+# Security: ensure proper file permissions
+mergen_ensure_permissions
+
 # ── Usage / Help ───────────────────────────────────────────
 
 usage() {
@@ -454,6 +457,13 @@ cmd_apply() {
 				;;
 		esac
 	done
+
+	# Export force flag for prefix limit checks in route.sh
+	if [ "$force" -eq 1 ]; then
+		MERGEN_FORCE_APPLY=1
+	else
+		MERGEN_FORCE_APPLY=0
+	fi
 
 	if [ "$safe" -eq 1 ]; then
 		echo "[*] Guvenli mod etkin"
