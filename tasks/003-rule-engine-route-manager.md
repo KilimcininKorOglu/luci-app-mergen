@@ -44,7 +44,7 @@ UCI-based rule add, delete, list, update, and enable/disable operations.
 
 ### T008 - Policy Routing via ip rule + ip route
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 2.5 days
 
