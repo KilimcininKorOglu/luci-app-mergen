@@ -218,6 +218,7 @@ mergen_rule_get() {
 	MERGEN_RULE_ENABLED=""
 	MERGEN_RULE_TYPE=""
 	MERGEN_RULE_TARGETS=""
+	MERGEN_RULE_TAGS=""
 	MERGEN_RULE_SECTION=""
 
 	if [ -z "$name" ]; then
@@ -255,6 +256,9 @@ mergen_rule_get() {
 		MERGEN_RULE_TYPE="unknown"
 		MERGEN_RULE_TARGETS=""
 	fi
+
+	# Get tags
+	config_get MERGEN_RULE_TAGS "$section_id" "tag" ""
 
 	return 0
 }
@@ -729,5 +733,268 @@ mergen_aggregate_prefixes() {
 
 	cat "$infile"
 	rm -f "$infile" "$outfile"
+	return 0
+}
+
+# ── Rule Tags ──────────────────────────────────────────────
+
+# Add a tag to a rule
+# Usage: mergen_rule_tag_add <rule_name> <tag>
+# Returns 0 on success, 1 on failure
+mergen_rule_tag_add() {
+	local name="$1"
+	local tag="$2"
+
+	if [ -z "$name" ] || [ -z "$tag" ]; then
+		mergen_log "error" "Engine" "[!] Hata: Kural adı ve etiket belirtilmeli."
+		return 1
+	fi
+
+	if ! validate_name "$tag"; then
+		mergen_log "error" "Engine" "$MERGEN_VALIDATE_ERR"
+		return 1
+	fi
+
+	if ! mergen_find_rule_by_name "$name"; then
+		mergen_log "error" "Engine" "[!] Hata: '$name' adında bir kural bulunamadı."
+		return 1
+	fi
+
+	local section_id="$MERGEN_UCI_RESULT"
+
+	# Check if tag already exists on this rule
+	config_load "$MERGEN_CONF"
+	local existing_tags
+	config_get existing_tags "$section_id" "tag" ""
+
+	local item
+	for item in $existing_tags; do
+		if [ "$item" = "$tag" ]; then
+			mergen_log "warning" "Engine" "Etiket zaten mevcut: '${tag}' -> '${name}'"
+			return 0
+		fi
+	done
+
+	mergen_uci_add_list "$section_id" "tag" "$tag"
+	mergen_uci_commit
+
+	mergen_log "info" "Engine" "Etiket eklendi: '${tag}' -> '${name}'"
+	return 0
+}
+
+# Remove a tag from a rule
+# Usage: mergen_rule_tag_remove <rule_name> <tag>
+# Returns 0 on success, 1 on failure
+mergen_rule_tag_remove() {
+	local name="$1"
+	local tag="$2"
+
+	if [ -z "$name" ] || [ -z "$tag" ]; then
+		mergen_log "error" "Engine" "[!] Hata: Kural adı ve etiket belirtilmeli."
+		return 1
+	fi
+
+	if ! mergen_find_rule_by_name "$name"; then
+		mergen_log "error" "Engine" "[!] Hata: '$name' adında bir kural bulunamadı."
+		return 1
+	fi
+
+	local section_id="$MERGEN_UCI_RESULT"
+
+	mergen_uci_del_list "$section_id" "tag" "$tag"
+	mergen_uci_commit
+
+	mergen_log "info" "Engine" "Etiket kaldırıldı: '${tag}' <- '${name}'"
+	return 0
+}
+
+# Get tags for a rule
+# Usage: mergen_rule_tags_get <rule_name>
+# Sets MERGEN_RULE_TAGS (space-separated list)
+MERGEN_RULE_TAGS=""
+
+mergen_rule_tags_get() {
+	local name="$1"
+	MERGEN_RULE_TAGS=""
+
+	if ! mergen_find_rule_by_name "$name"; then
+		return 1
+	fi
+
+	local section_id="$MERGEN_UCI_RESULT"
+	config_load "$MERGEN_CONF"
+	config_get MERGEN_RULE_TAGS "$section_id" "tag" ""
+	return 0
+}
+
+# Check if a rule has a specific tag
+# Usage: mergen_rule_has_tag <rule_name> <tag>
+# Returns 0 if rule has tag, 1 otherwise
+mergen_rule_has_tag() {
+	local name="$1"
+	local tag="$2"
+
+	mergen_rule_tags_get "$name" || return 1
+
+	local item
+	for item in $MERGEN_RULE_TAGS; do
+		if [ "$item" = "$tag" ]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+# List rules filtered by tag
+# Usage: mergen_rule_list_by_tag <tag>
+# Prints formatted table of matching rules
+mergen_rule_list_by_tag() {
+	local filter_tag="$1"
+	local count=0
+	local has_rules=0
+
+	if [ -z "$filter_tag" ]; then
+		mergen_log "error" "Engine" "[!] Hata: Etiket belirtilmeli."
+		return 1
+	fi
+
+	printf "%-4s %-16s %-5s %-20s %-6s %-5s %-8s %s\n" \
+		"ID" "NAME" "TYPE" "TARGET" "VIA" "PRI" "STATUS" "TAGS"
+
+	_tag_list_cb() {
+		local section="$1"
+		local name via priority enabled asn_val ip_val tags
+		local type target status
+
+		config_get name "$section" "name" ""
+		config_get tags "$section" "tag" ""
+
+		# Check if rule has the filter tag
+		local has_tag=0 item
+		for item in $tags; do
+			if [ "$item" = "$filter_tag" ]; then
+				has_tag=1
+				break
+			fi
+		done
+		[ "$has_tag" -eq 0 ] && return
+
+		config_get via "$section" "via" ""
+		config_get priority "$section" "priority" "100"
+		config_get enabled "$section" "enabled" "1"
+		config_get asn_val "$section" "asn" ""
+		config_get ip_val "$section" "ip" ""
+
+		if [ -n "$asn_val" ]; then
+			type="ASN"
+			local formatted="" i
+			for i in $asn_val; do
+				if [ -n "$formatted" ]; then
+					formatted="${formatted},AS${i}"
+				else
+					formatted="AS${i}"
+				fi
+			done
+			target="$formatted"
+		elif [ -n "$ip_val" ]; then
+			type="IP"
+			local first_ip="" ip_count=0 i
+			for i in $ip_val; do
+				ip_count=$((ip_count + 1))
+				[ "$ip_count" -eq 1 ] && first_ip="$i"
+			done
+			if [ "$ip_count" -gt 1 ]; then
+				target="${first_ip} (+$((ip_count - 1)))"
+			else
+				target="$first_ip"
+			fi
+		else
+			type="?"
+			target="-"
+		fi
+
+		if [ "$enabled" = "1" ]; then
+			status="active"
+		else
+			status="disabled"
+		fi
+
+		if [ "${#target}" -gt 20 ]; then
+			target="$(printf '%.17s...' "$target")"
+		fi
+
+		count=$((count + 1))
+		has_rules=1
+		printf "%-4s %-16s %-5s %-20s %-6s %-5s %-8s %s\n" \
+			"$count" "$name" "$type" "$target" "$via" "$priority" "$status" "$tags"
+	}
+
+	mergen_list_rules _tag_list_cb
+
+	if [ "$has_rules" -eq 0 ]; then
+		printf "(etiket '%s' ile eşleşen kural yok)\n" "$filter_tag"
+	fi
+}
+
+# Batch enable/disable rules by tag
+# Usage: mergen_rule_toggle_by_tag <tag> <0|1>
+# Returns 0 on success, 1 if no rules matched
+MERGEN_TAG_TOGGLE_COUNT=0
+
+mergen_rule_toggle_by_tag() {
+	local filter_tag="$1"
+	local enabled="$2"
+	MERGEN_TAG_TOGGLE_COUNT=0
+
+	if [ -z "$filter_tag" ]; then
+		mergen_log "error" "Engine" "[!] Hata: Etiket belirtilmeli."
+		return 1
+	fi
+
+	case "$enabled" in
+		0|1) ;;
+		*)
+			mergen_log "error" "Engine" "[!] Hata: Geçersiz durum: '$enabled'"
+			return 1
+			;;
+	esac
+
+	_toggle_by_tag_cb() {
+		local section="$1"
+		local name tags
+
+		config_get name "$section" "name" ""
+		config_get tags "$section" "tag" ""
+
+		local has_tag=0 item
+		for item in $tags; do
+			if [ "$item" = "$filter_tag" ]; then
+				has_tag=1
+				break
+			fi
+		done
+
+		if [ "$has_tag" -eq 1 ] && [ -n "$name" ]; then
+			mergen_rule_toggle "$name" "$enabled"
+			MERGEN_TAG_TOGGLE_COUNT=$((MERGEN_TAG_TOGGLE_COUNT + 1))
+		fi
+	}
+
+	config_load "$MERGEN_CONF"
+	config_foreach _toggle_by_tag_cb "rule"
+
+	if [ "$MERGEN_TAG_TOGGLE_COUNT" -eq 0 ]; then
+		mergen_log "warning" "Engine" "Etiket '${filter_tag}' ile eşleşen kural bulunamadı."
+		return 1
+	fi
+
+	local action_str
+	if [ "$enabled" = "1" ]; then
+		action_str="etkinlestirildi"
+	else
+		action_str="devre disi birakildi"
+	fi
+
+	mergen_log "info" "Engine" "${MERGEN_TAG_TOGGLE_COUNT} kural ${action_str} (etiket: ${filter_tag})"
 	return 0
 }

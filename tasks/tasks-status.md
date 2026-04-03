@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 20    | 41%        |
+| NOT_STARTED | 19    | 39%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 29    | 59%        |
+| COMPLETED   | 30    | 61%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -27,7 +27,7 @@
 | F006    | nftables/ipset Integration      | Phase 2 | 2     | NOT_STARTED |
 | F007    | Logging, CLI & Security         | Phase 2 | 4     | NOT_STARTED |
 | F008    | Multi-Provider System           | Phase 3 | 4     | NOT_STARTED |
-| F009    | IPv6 & Advanced Rule Engine     | Phase 3 | 3     | NOT_STARTED |
+| F009    | IPv6 & Advanced Rule Engine     | Phase 3 | 3     | COMPLETED   |
 | F010    | Import/Export & Automation      | Phase 3 | 4     | NOT_STARTED |
 | F011    | LuCI Core Pages                 | Phase 4 | 4     | NOT_STARTED |
 | F012    | LuCI Advanced Pages             | Phase 5 | 4     | NOT_STARTED |
@@ -79,7 +79,7 @@
 | T026 | F008    | Provider Fallback & Health        | P2       | 2d     | COMPLETED   | T004, T006   |
 | T027 | F009    | IPv6 Dual-Stack Routing           | P2       | 2.5d   | COMPLETED   | T008, T017   |
 | T028 | F009    | Conflict Detection & Aggregation  | P3       | 2d     | COMPLETED   | T007         |
-| T029 | F009    | Rule Grouping (Label/Tag)         | P4       | 1d     | NOT_STARTED | T007         |
+| T029 | F009    | Rule Grouping (Label/Tag)         | P4       | 1d     | COMPLETED   | T007         |
 | T030 | F010    | JSON Import/Export                | P2       | 2d     | NOT_STARTED | T007, T010   |
 | T031 | F010    | Cron Auto-Update                  | P2       | 1.5d   | NOT_STARTED | T006, T010   |
 | T032 | F010    | Hotplug Integration               | P2       | 1.5d   | NOT_STARTED | T010, T012   |

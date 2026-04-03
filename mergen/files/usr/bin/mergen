@@ -43,6 +43,7 @@ Komutlar:
   diag       Tani bilgisi goster
   log        Mergen loglarini filtrele ve goster
   validate   Yapilandirmayi dogrula (uygulamadan)
+  tag        Kurala etiket ekle veya kaldir
   version    Surum bilgisi goster
   help       Bu yardimi veya komut yardimini goster
 
@@ -219,6 +220,24 @@ Secenekler:
   --check-providers    Provider baglanti testini de calistir
 HELP
 			;;
+		tag)
+			cat <<'HELP'
+Kullanim: mergen tag <alt-komut> <KURAL> <ETIKET>
+
+Kurallara etiket ekler veya kaldirir. Etiketler toplu islemler icin kullanilir.
+
+Alt komutlar:
+  add <KURAL> <ETIKET>      Kurala etiket ekle
+  remove <KURAL> <ETIKET>   Kuraldan etiket kaldir
+
+Ornekler:
+  mergen tag add myrule vpn
+  mergen tag remove myrule vpn
+  mergen list --tag vpn
+  mergen enable --tag vpn
+  mergen disable --tag vpn
+HELP
+			;;
 		version)
 			cat <<'HELP'
 Kullanim: mergen version
@@ -345,7 +364,26 @@ cmd_remove() {
 # ── List ───────────────────────────────────────────────────
 
 cmd_list() {
-	mergen_rule_list
+	local tag_filter=""
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--tag)
+				tag_filter="$2"
+				shift 2
+				;;
+			*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'.\n" "$1" >&2
+				return 2
+				;;
+		esac
+	done
+
+	if [ -n "$tag_filter" ]; then
+		mergen_rule_list_by_tag "$tag_filter"
+	else
+		mergen_rule_list
+	fi
 }
 
 # ── Show ───────────────────────────────────────────────────
@@ -373,6 +411,10 @@ cmd_show() {
 		printf "Durum:    aktif\n"
 	else
 		printf "Durum:    devre disi\n"
+	fi
+
+	if [ -n "$MERGEN_RULE_TAGS" ]; then
+		printf "Etiket:   %s\n" "$MERGEN_RULE_TAGS"
 	fi
 
 	# Show routing status if available (return code ignored — optional info)
@@ -411,11 +453,36 @@ cmd_show() {
 # ── Enable / Disable ──────────────────────────────────────
 
 cmd_enable() {
-	local name="$1"
+	local name="" tag_filter=""
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--tag)
+				tag_filter="$2"
+				shift 2
+				;;
+			-*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'.\n" "$1" >&2
+				return 2
+				;;
+			*)
+				name="$1"
+				shift
+				;;
+		esac
+	done
+
+	if [ -n "$tag_filter" ]; then
+		if mergen_rule_toggle_by_tag "$tag_filter" "1"; then
+			printf "[+] %s kural etkinlestirildi (etiket: %s)\n" "$MERGEN_TAG_TOGGLE_COUNT" "$tag_filter"
+			return 0
+		fi
+		return 1
+	fi
 
 	if [ -z "$name" ]; then
-		echo "[!] Hata: Kural adi belirtilmeli." >&2
-		echo "Kullanim: mergen enable <AD>" >&2
+		echo "[!] Hata: Kural adi veya --tag belirtilmeli." >&2
+		echo "Kullanim: mergen enable <AD> | mergen enable --tag <ETIKET>" >&2
 		return 2
 	fi
 
@@ -427,11 +494,36 @@ cmd_enable() {
 }
 
 cmd_disable() {
-	local name="$1"
+	local name="" tag_filter=""
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--tag)
+				tag_filter="$2"
+				shift 2
+				;;
+			-*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'.\n" "$1" >&2
+				return 2
+				;;
+			*)
+				name="$1"
+				shift
+				;;
+		esac
+	done
+
+	if [ -n "$tag_filter" ]; then
+		if mergen_rule_toggle_by_tag "$tag_filter" "0"; then
+			printf "[+] %s kural devre disi birakildi (etiket: %s)\n" "$MERGEN_TAG_TOGGLE_COUNT" "$tag_filter"
+			return 0
+		fi
+		return 1
+	fi
 
 	if [ -z "$name" ]; then
-		echo "[!] Hata: Kural adi belirtilmeli." >&2
-		echo "Kullanim: mergen disable <AD>" >&2
+		echo "[!] Hata: Kural adi veya --tag belirtilmeli." >&2
+		echo "Kullanim: mergen disable <AD> | mergen disable --tag <ETIKET>" >&2
 		return 2
 	fi
 
@@ -440,6 +532,45 @@ cmd_disable() {
 		return 0
 	fi
 	return 1
+}
+
+# ── Tag ───────────────────────────────────────────────────
+
+cmd_tag() {
+	local action="$1"
+	local name="$2"
+	local tag="$3"
+
+	case "$action" in
+		add)
+			if [ -z "$name" ] || [ -z "$tag" ]; then
+				echo "[!] Hata: Kullanim: mergen tag add <KURAL> <ETIKET>" >&2
+				return 2
+			fi
+			if mergen_rule_tag_add "$name" "$tag"; then
+				printf "[+] Etiket eklendi: '%s' -> '%s'\n" "$tag" "$name"
+				return 0
+			fi
+			return 1
+			;;
+		remove)
+			if [ -z "$name" ] || [ -z "$tag" ]; then
+				echo "[!] Hata: Kullanim: mergen tag remove <KURAL> <ETIKET>" >&2
+				return 2
+			fi
+			if mergen_rule_tag_remove "$name" "$tag"; then
+				printf "[+] Etiket kaldirildi: '%s' <- '%s'\n" "$tag" "$name"
+				return 0
+			fi
+			return 1
+			;;
+		*)
+			echo "[!] Hata: Bilinmeyen alt komut. Kullanim:" >&2
+			echo "  mergen tag add <KURAL> <ETIKET>" >&2
+			echo "  mergen tag remove <KURAL> <ETIKET>" >&2
+			return 2
+			;;
+	esac
 }
 
 # ── Apply ──────────────────────────────────────────────────
@@ -991,6 +1122,9 @@ if [ "${MERGEN_SOURCED:-0}" != "1" ]; then
 			;;
 		validate)
 			shift; cmd_validate "$@"
+			;;
+		tag)
+			shift; cmd_tag "$@"
 			;;
 		version)
 			cmd_version

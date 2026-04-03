@@ -81,7 +81,7 @@ Detecting conflicts where the same prefix is routed to different targets, and ag
 
 ### T029 - Rule Grouping (Label/Tag)
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P4 (Low)
 **Effort**: 1 day
 
