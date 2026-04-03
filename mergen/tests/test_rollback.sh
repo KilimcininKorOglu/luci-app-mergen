@@ -128,14 +128,20 @@ $*"
 			case "$2" in
 				show)
 					shift 2
-					local table=""
+					local table="" dev=""
 					while [ $# -gt 0 ]; do
 						case "$1" in
 							table) table="$2"; shift 2 ;;
-							dev) shift 2 ;;
+							dev) dev="$2"; shift 2 ;;
+							default) shift ;;
 							*) shift ;;
 						esac
 					done
+					# Gateway detection: return default route for any device
+					if [ -n "$dev" ] && [ -z "$table" ]; then
+						echo "default via 10.0.0.1 dev ${dev}"
+						return 0
+					fi
 					if [ -n "$table" ]; then
 						echo "$_MOCK_IP_ROUTES" | grep "table=${table}" | sed 's/ table=[0-9]*//'
 					else
@@ -371,8 +377,7 @@ test_apply_rollback_cycle() {
 	_MOCK_FOREACH_SECTIONS="rule1"
 	_mock_uci_set "mergen.rule1.name=test1"
 	_mock_uci_set "mergen.rule1.enabled=1"
-	_mock_uci_set "mergen.rule1.type=ip"
-	_mock_uci_set "mergen.rule1.targets=10.0.0.0/8"
+	_mock_uci_set "mergen.rule1.ip=10.0.0.0/8"
 	_mock_uci_set "mergen.rule1.via=wg0"
 	_mock_uci_set "mergen.rule1.priority=100"
 
@@ -387,6 +392,103 @@ test_apply_rollback_cycle() {
 	output="$(cmd_rollback 2>&1)"
 	echo "$output" | grep -q "Geri yukleme tamamlandi"
 	assertEquals "Rollback succeeds after apply" 0 $?
+}
+
+# ── Atomic Apply Tests ──────────────────────────────────
+
+test_atomic_apply_no_rules() {
+	_MOCK_FOREACH_SECTIONS=""
+
+	mergen_apply_atomic
+	local ret=$?
+	assertEquals "Atomic apply with no rules succeeds" 0 "$ret"
+	assertEquals "Applied count is 0" 0 "$MERGEN_ROUTE_APPLIED_COUNT"
+}
+
+test_atomic_apply_all_succeed() {
+	_MOCK_FOREACH_SECTIONS="rule1 rule2"
+	_mock_uci_set "mergen.rule1.name=test1"
+	_mock_uci_set "mergen.rule1.enabled=1"
+	_mock_uci_set "mergen.rule1.ip=10.0.0.0/8"
+	_mock_uci_set "mergen.rule1.via=wg0"
+	_mock_uci_set "mergen.rule1.priority=100"
+	_mock_uci_set "mergen.rule2.name=test2"
+	_mock_uci_set "mergen.rule2.enabled=1"
+	_mock_uci_set "mergen.rule2.ip=172.16.0.0/12"
+	_mock_uci_set "mergen.rule2.via=wg0"
+	_mock_uci_set "mergen.rule2.priority=200"
+
+	mergen_apply_atomic
+	local ret=$?
+	assertEquals "Atomic apply succeeds" 0 "$ret"
+	assertEquals "Applied count is 2" 2 "$MERGEN_ROUTE_APPLIED_COUNT"
+}
+
+test_atomic_apply_skips_disabled() {
+	_MOCK_FOREACH_SECTIONS="rule1 rule2"
+	_mock_uci_set "mergen.rule1.name=test1"
+	_mock_uci_set "mergen.rule1.enabled=1"
+	_mock_uci_set "mergen.rule1.ip=10.0.0.0/8"
+	_mock_uci_set "mergen.rule1.via=wg0"
+	_mock_uci_set "mergen.rule1.priority=100"
+	_mock_uci_set "mergen.rule2.name=test2"
+	_mock_uci_set "mergen.rule2.enabled=0"
+	_mock_uci_set "mergen.rule2.ip=172.16.0.0/12"
+	_mock_uci_set "mergen.rule2.via=wg0"
+	_mock_uci_set "mergen.rule2.priority=200"
+
+	mergen_apply_atomic
+	local ret=$?
+	assertEquals "Atomic apply succeeds" 0 "$ret"
+	assertEquals "Only enabled rule applied" 1 "$MERGEN_ROUTE_APPLIED_COUNT"
+}
+
+test_atomic_apply_failure_rolls_back() {
+	# Override mergen_route_apply to fail on second rule
+	_ORIG_ROUTE_APPLY="$(type mergen_route_apply)"
+	_apply_call_count=0
+
+	mergen_route_apply() {
+		_apply_call_count=$((_apply_call_count + 1))
+		if [ "$_apply_call_count" -eq 2 ]; then
+			return 1
+		fi
+		return 0
+	}
+
+	_MOCK_FOREACH_SECTIONS="rule1 rule2"
+	_mock_uci_set "mergen.rule1.name=test1"
+	_mock_uci_set "mergen.rule1.enabled=1"
+	_mock_uci_set "mergen.rule2.name=fail_rule"
+	_mock_uci_set "mergen.rule2.enabled=1"
+
+	# Create snapshot first (needed for restore)
+	mergen_snapshot_create
+
+	mergen_apply_atomic
+	local ret=$?
+	assertEquals "Atomic apply fails" 1 "$ret"
+	assertEquals "Failed rule name recorded" "fail_rule" "$MERGEN_ATOMIC_FAILED_RULE"
+
+	# Restore the original function
+	eval "mergen_route_apply() { :; }"
+}
+
+test_atomic_apply_failure_reports_rule_name() {
+	mergen_route_apply() {
+		return 1
+	}
+
+	_MOCK_FOREACH_SECTIONS="rule1"
+	_mock_uci_set "mergen.rule1.name=broken_rule"
+	_mock_uci_set "mergen.rule1.enabled=1"
+
+	mergen_snapshot_create
+
+	mergen_apply_atomic
+	assertEquals "Failed rule is broken_rule" "broken_rule" "$MERGEN_ATOMIC_FAILED_RULE"
+
+	eval "mergen_route_apply() { :; }"
 }
 
 # ── Load shunit2 ────────────────────────────────────────

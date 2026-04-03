@@ -43,7 +43,7 @@ Mechanism for saving the current routing state before apply and restoring it.
 
 ### T015 - Atomic Apply
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 2 days
 

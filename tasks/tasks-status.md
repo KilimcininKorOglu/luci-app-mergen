@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 34    | 69%        |
+| NOT_STARTED | 33    | 67%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 15    | 31%        |
+| COMPLETED   | 16    | 33%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -60,7 +60,7 @@
 | Task | Feature | Name                              | Priority | Effort | Status      | Dependencies     |
 |------|---------|-----------------------------------|----------|--------|-------------|------------------|
 | T014 | F005    | Routing State Snapshot & Rollback | P1       | 2.5d   | COMPLETED   | T008, T010       |
-| T015 | F005    | Atomic Apply                      | P1       | 2d     | NOT_STARTED | T014             |
+| T015 | F005    | Atomic Apply                      | P1       | 2d     | COMPLETED   | T014             |
 | T016 | F005    | Watchdog Timer & Safe Mode        | P1       | 2d     | NOT_STARTED | T012, T014       |
 | T017 | F006    | nftables Set Management           | P1       | 2.5d   | NOT_STARTED | T008             |
 | T018 | F006    | ipset Fallback                    | P2       | 1.5d   | NOT_STARTED | T017             |

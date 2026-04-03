@@ -423,8 +423,8 @@ test_apply_empty() {
 	local output
 	output="$(cmd_apply 2>/dev/null)"
 	assertEquals "Apply empty succeeds" 0 $?
-	echo "$output" | grep -q "aktif kural yok"
-	assertEquals "Shows no active rules message" 0 $?
+	echo "$output" | grep -q "0 kural"
+	assertEquals "Shows zero rules applied" 0 $?
 }
 
 test_apply_with_ip_rule() {
@@ -433,8 +433,6 @@ test_apply_with_ip_rule() {
 	local output
 	output="$(cmd_apply 2>/dev/null)"
 	assertEquals "Apply succeeds" 0 $?
-	echo "$output" | grep -q "apply-ip"
-	assertEquals "Shows rule name in output" 0 $?
 	echo "$output" | grep -q "1 kural"
 	assertEquals "Shows applied count" 0 $?
 }
@@ -446,8 +444,8 @@ test_apply_skips_disabled() {
 	local output
 	output="$(cmd_apply 2>/dev/null)"
 	assertEquals "Apply succeeds" 0 $?
-	echo "$output" | grep -q "atlandi"
-	assertEquals "Shows skipped count" 0 $?
+	echo "$output" | grep -q "0 kural"
+	assertEquals "Shows zero applied (disabled skipped)" 0 $?
 }
 
 test_apply_writes_last_sync() {

@@ -392,45 +392,25 @@ cmd_apply() {
 	echo "[*] Mevcut routing durumu kaydediliyor..."
 	mergen_snapshot_create
 
-	echo "[*] Kurallar uygulaniyor..."
+	echo "[*] Kurallar atomik olarak uygulaniyor..."
 
-	local applied=0 failed=0 skipped=0
+	if mergen_apply_atomic; then
+		echo ""
+		printf "[OK] %s kural basariyla uygulandi\n" "$MERGEN_ROUTE_APPLIED_COUNT"
 
-	_cli_apply_cb() {
-		local section="$1"
-		local name enabled
-		config_get name "$section" "name" ""
-		config_get enabled "$section" "enabled" "1"
-
-		if [ "$enabled" != "1" ]; then
-			skipped=$((skipped + 1))
-			return 0
-		fi
-
-		if mergen_route_apply "$name"; then
-			applied=$((applied + 1))
-			_mergen_get_table_num "$name"
-			printf "[+] %s: Rota tablosu %s olusturuldu\n" "$name" "$MERGEN_TABLE_NUM"
-		else
-			failed=$((failed + 1))
-			printf "[!] %s: Uygulanamadi\n" "$name" >&2
-		fi
-	}
-
-	mergen_list_rules _cli_apply_cb
-
-	echo ""
-	if [ "$applied" -gt 0 ]; then
-		printf "[OK] %s kural basariyla uygulandi" "$applied"
+		# Write last sync timestamp
+		date +%s > "${MERGEN_TMP}/last_sync"
 	else
-		printf "[OK] Uygulanacak aktif kural yok"
-	fi
-	[ "$failed" -gt 0 ] && printf ", %s basarisiz" "$failed"
-	[ "$skipped" -gt 0 ] && printf ", %s atlandi" "$skipped"
-	printf "\n"
+		echo ""
+		if [ -n "$MERGEN_ATOMIC_FAILED_RULE" ]; then
+			printf "[!] Hata: '%s' kuralinda basarisizlik. Tum kurallar geri alindi.\n" "$MERGEN_ATOMIC_FAILED_RULE" >&2
+		else
+			printf "[!] Hata: Uygulama basarisiz oldu.\n" >&2
+		fi
 
-	# Write last sync timestamp
-	date +%s > "${MERGEN_TMP}/last_sync"
+		mergen_lock_release
+		return 1
+	fi
 
 	mergen_lock_release
 

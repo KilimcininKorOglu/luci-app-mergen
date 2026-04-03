@@ -272,6 +272,77 @@ mergen_route_apply_all() {
 	return 1
 }
 
+# ── Atomic Apply ──────────────────────────────────────────
+
+# Atomic apply: all rules succeed or none are applied
+# Takes snapshot, applies rules one by one, rolls back on any failure
+# Returns 0 on full success, 1 on failure (with rollback)
+MERGEN_ATOMIC_FAILED_RULE=""
+
+mergen_apply_atomic() {
+	MERGEN_ROUTE_APPLIED_COUNT=0
+	MERGEN_ROUTE_FAILED_COUNT=0
+	MERGEN_ATOMIC_FAILED_RULE=""
+
+	# Collect enabled rules in priority order
+	local rule_names=""
+
+	_collect_rules_cb() {
+		local section="$1"
+		local name enabled
+		config_get name "$section" "name" ""
+		config_get enabled "$section" "enabled" "1"
+
+		if [ "$enabled" = "1" ] && [ -n "$name" ]; then
+			rule_names="${rule_names} ${name}"
+		fi
+	}
+
+	mergen_list_rules _collect_rules_cb
+
+	# Nothing to apply
+	if [ -z "$(echo "$rule_names" | tr -d ' ')" ]; then
+		mergen_log "info" "Route" "Uygulanacak aktif kural yok."
+		return 0
+	fi
+
+	mergen_log "info" "Route" "Atomik uygulama baslatiliyor..."
+
+	# Track which rules were successfully applied (for partial rollback)
+	local applied_rules=""
+
+	# Apply rules one by one
+	local name
+	for name in $rule_names; do
+		if mergen_route_apply "$name"; then
+			MERGEN_ROUTE_APPLIED_COUNT=$((MERGEN_ROUTE_APPLIED_COUNT + 1))
+			applied_rules="${applied_rules} ${name}"
+		else
+			MERGEN_ROUTE_FAILED_COUNT=$((MERGEN_ROUTE_FAILED_COUNT + 1))
+			MERGEN_ATOMIC_FAILED_RULE="$name"
+			mergen_log "error" "Route" "Kural '${name}' basarisiz. Geri alma baslatiliyor..."
+
+			# Rollback: remove all rules applied so far
+			local rollback_name
+			for rollback_name in $applied_rules; do
+				mergen_route_remove "$rollback_name" 2>/dev/null
+			done
+
+			# Restore from snapshot
+			if mergen_snapshot_exists; then
+				mergen_snapshot_restore
+				mergen_log "info" "Route" "Snapshot'tan geri yukleme tamamlandi."
+			fi
+
+			mergen_log "error" "Route" "Atomik uygulama basarisiz: '${name}' kuralinda hata."
+			return 1
+		fi
+	done
+
+	mergen_log "info" "Route" "Atomik uygulama basarili: ${MERGEN_ROUTE_APPLIED_COUNT} kural uygulandi."
+	return 0
+}
+
 # ── Remove All ──────────────────────────────────────────
 
 # Remove routes for all rules
