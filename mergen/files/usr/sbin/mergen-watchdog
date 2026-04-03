@@ -1,51 +1,161 @@
 #!/bin/sh
 # Mergen Watchdog Daemon
-# Lightweight procd-managed daemon for periodic tasks and event handling
+# Periodic prefix updates, status file maintenance, and health monitoring
+# Managed by procd via /etc/init.d/mergen
 
-MERGEN_LIB_DIR="/usr/lib/mergen"
-MERGEN_TMP="/tmp/mergen"
-MERGEN_STATUS="${MERGEN_TMP}/status.json"
-MERGEN_LOCK="/var/lock/mergen.lock"
+MERGEN_LIB_DIR="${MERGEN_LIB_DIR:-/usr/lib/mergen}"
+MERGEN_TMP="${MERGEN_TMP:-/tmp/mergen}"
+MERGEN_STATUS_FILE="${MERGEN_TMP}/status.json"
+MERGEN_PID_FILE="/var/run/mergen.pid"
 
-. "${MERGEN_LIB_DIR}/core.sh"
+# Watchdog poll interval (seconds) — how often the daemon wakes up
+WATCHDOG_CHECK_INTERVAL="${WATCHDOG_CHECK_INTERVAL:-60}"
 
-# Ensure temp directories exist
+# Load OpenWrt shell functions
+type config_load >/dev/null 2>&1 || { [ -f /lib/functions.sh ] && . /lib/functions.sh; }
+
+# Load Mergen libraries
+type mergen_log >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/core.sh"
+type mergen_rule_get >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/engine.sh"
+type mergen_resolve_asn >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/resolver.sh"
+type mergen_route_apply >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/route.sh"
+
+# Ensure directories exist
 [ -d "$MERGEN_TMP" ] || mkdir -p "$MERGEN_TMP"
-[ -d "${MERGEN_TMP}/cache" ] || mkdir -p "${MERGEN_TMP}/cache"
 
-write_status() {
+# ── State Variables ────────────────────────────────────────
+
+_watchdog_running=1
+_watchdog_start_time=0
+_watchdog_last_update=0
+
+# ── Signal Handling ────────────────────────────────────────
+
+_watchdog_shutdown() {
+	mergen_log "info" "Watchdog" "Kapatma sinyali alindi..."
+	_watchdog_running=0
+}
+
+# ── Status File ────────────────────────────────────────────
+
+# Write daemon status to /tmp/mergen/status.json
+# Called periodically by the main loop
+watchdog_write_status() {
+	local total_rules active_rules disabled_rules
+	total_rules="$(mergen_count_rules)"
+	active_rules="$(mergen_count_rules_enabled 1)"
+	disabled_rules="$(mergen_count_rules_enabled 0)"
+
 	local now
-	now="$(date -Iseconds 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S')"
-	cat > "$MERGEN_STATUS" <<-EOF
-	{
-		"daemon": "running",
-		"pid": $$,
-		"started": "${WATCHDOG_STARTED}",
-		"last_check": "${now}",
-		"uptime_seconds": $(( $(date +%s) - WATCHDOG_START_TS ))
-	}
-	EOF
+	now="$(date +%s)"
+	local uptime=$((now - _watchdog_start_time))
+
+	# Count cached ASNs
+	local cached_asns=0
+	if [ -d "${MERGEN_TMP}/cache" ]; then
+		cached_asns="$(ls -1 "${MERGEN_TMP}/cache"/AS*.meta 2>/dev/null | wc -l | tr -d ' ')"
+	fi
+
+	# Read last sync time
+	local last_sync=0
+	local last_sync_file="${MERGEN_TMP}/last_sync"
+	[ -f "$last_sync_file" ] && last_sync="$(cat "$last_sync_file" 2>/dev/null)"
+	[ -z "$last_sync" ] && last_sync=0
+
+	# Write JSON status (manual construction — no jq dependency)
+	cat > "$MERGEN_STATUS_FILE" <<STATUSEOF
+{
+	"version": "0.1.0",
+	"daemon": "active",
+	"pid": $$,
+	"uptime": ${uptime},
+	"rules": {
+		"total": ${total_rules},
+		"active": ${active_rules},
+		"disabled": ${disabled_rules}
+	},
+	"cache": {
+		"cached_asns": ${cached_asns}
+	},
+	"last_check": ${now},
+	"last_update": ${_watchdog_last_update},
+	"last_sync": ${last_sync}
+}
+STATUSEOF
 }
 
-cleanup() {
-	mergen_log "info" "Daemon" "Watchdog stopping (PID $$)"
-	rm -f "$MERGEN_STATUS"
-	exit 0
+# ── Update Check ──────────────────────────────────────────
+
+# Check if prefix data needs refreshing based on update_interval
+# Acquires lock, runs apply_all, releases lock
+watchdog_check_updates() {
+	local now
+	now="$(date +%s)"
+
+	# Read update interval from UCI
+	mergen_uci_get "global" "update_interval" "86400"
+	local interval="$MERGEN_UCI_RESULT"
+
+	# Read last sync timestamp
+	local last_sync_file="${MERGEN_TMP}/last_sync"
+	local last_sync=0
+	[ -f "$last_sync_file" ] && last_sync="$(cat "$last_sync_file" 2>/dev/null)"
+	[ -z "$last_sync" ] && last_sync=0
+
+	local elapsed=$((now - last_sync))
+
+	if [ "$elapsed" -ge "$interval" ]; then
+		mergen_log "info" "Watchdog" "Guncelleme zamani geldi (${elapsed}s >= ${interval}s)"
+
+		# Acquire lock with short timeout (don't block the daemon)
+		if mergen_lock_acquire 10; then
+			mergen_route_apply_all
+			date +%s > "$last_sync_file"
+			_watchdog_last_update="$(date +%s)"
+			mergen_lock_release
+			mergen_log "info" "Watchdog" "Prefix guncelleme tamamlandi"
+		else
+			mergen_log "warning" "Watchdog" "Kilit alinamadi, guncelleme ertelendi"
+		fi
+	else
+		local remaining=$((interval - elapsed))
+		mergen_log "debug" "Watchdog" "Sonraki guncelleme: ${remaining}s"
+	fi
 }
 
-trap cleanup INT TERM
+# ── Main Loop ─────────────────────────────────────────────
+# Guard: skip when sourced for testing (MERGEN_WATCHDOG_SOURCED=1)
 
-WATCHDOG_STARTED="$(date -Iseconds 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S')"
-WATCHDOG_START_TS="$(date +%s)"
+if [ "${MERGEN_WATCHDOG_SOURCED:-0}" != "1" ]; then
+	trap _watchdog_shutdown INT TERM
 
-mergen_log "info" "Daemon" "Watchdog started (PID $$)"
+	# Write PID
+	echo $$ > "$MERGEN_PID_FILE"
 
-# Read watchdog interval from UCI
-mergen_uci_get "global" "watchdog_interval" "60"
-interval="$MERGEN_UCI_RESULT"
+	mergen_log "info" "Watchdog" "mergen-watchdog baslatildi (PID: $$)"
 
-# Main loop
-while true; do
-	write_status
-	sleep "$interval"
-done
+	_watchdog_start_time="$(date +%s)"
+
+	# Initialize resolver (sets MERGEN_CACHE_DIR)
+	mergen_resolver_init
+
+	# Write initial status
+	watchdog_write_status
+
+	while [ "$_watchdog_running" -eq 1 ]; do
+		watchdog_check_updates
+		watchdog_write_status
+
+		# Sleep in 1-second intervals for responsive signal handling
+		local slept=0
+		while [ "$slept" -lt "$WATCHDOG_CHECK_INTERVAL" ] && [ "$_watchdog_running" -eq 1 ]; do
+			sleep 1
+			slept=$((slept + 1))
+		done
+	done
+
+	# Cleanup
+	rm -f "$MERGEN_STATUS_FILE"
+	rm -f "$MERGEN_PID_FILE"
+	mergen_log "info" "Watchdog" "mergen-watchdog durduruldu"
+fi

@@ -78,7 +78,7 @@ Utility CLI commands: version, help, validate.
 
 ### T012 - Watchdog Daemon
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 2 days
 
