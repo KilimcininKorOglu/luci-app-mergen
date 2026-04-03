@@ -1,6 +1,6 @@
 # Mergen - OpenWrt ASN/IP Bazlı Policy Routing
 
-version: 1.1
+version: 1.2
 
 > *Mergen: Türk-Altay mitolojisinde bilgelik ve okçuluk tanrısı. Oku daima hedefe ulaştırır.*
 
@@ -715,42 +715,281 @@ mergen/                         # Ana OpenWrt paketi
 
 ## 13. Fazlar ve Kilometre Taşları
 
-### Faz 1: Çekirdek (MVP)
+### Faz 1: Temel Altyapı ve MVP CLI
 
-- [ ] ASN -> prefix çözümleme (RIPE provider)
-- [ ] IP/CIDR bazlı kural ekleme
-- [ ] `ip rule` + `ip route` ile routing uygulama
-- [ ] Temel CLI (add, remove, list, apply, status)
-- [ ] UCI yapılandırma yapısı
-- [ ] Init script (procd)
-- [ ] Rollback mekanizması
+İlk çalışan `mergen add --asn 13335 --via wg0 && mergen apply` akışını sağlayan minimum altyapı.
 
-### Faz 2: Genişletme
+**Proje İskeleti** *(Bölüm 9)*:
+- [ ] OpenWrt buildroot Makefile yapısı
+- [ ] Paket dizin hiyerarşisi (`files/etc/`, `files/usr/bin/`, `files/usr/lib/mergen/`)
+- [ ] Varsayılan UCI config dosyası (`/etc/config/mergen`)
+- [ ] Procd init script (`/etc/init.d/mergen`)
 
-- [ ] Ek ASN provider'lar (bgp.tools, bgpview, MaxMind)
-- [ ] nftables set entegrasyonu (performans)
-- [ ] IPv6 desteği
-- [ ] YAML import/export
-- [ ] Otomatik prefix güncelleme (cron)
-- [ ] Hotplug entegrasyonu (interface up/down)
+**UCI Yapılandırma** *(Bölüm 6.3)*:
+- [ ] `config mergen 'global'` blok yapısı (enabled, log_level, default_table)
+- [ ] `config provider` blok yapısı (enabled, priority, api_url)
+- [ ] `config rule` blok yapısı (name, asn/ip, via, priority, enabled)
+- [ ] UCI okuma/yazma fonksiyonları (`core.sh` — libuci veya `uci` CLI wrapper)
 
-### Faz 3: LuCI
+**ASN Resolver — RIPE Provider** *(Bölüm 5.2.1)*:
+- [ ] Provider plugin altyapısı (`/etc/mergen/providers/` dizini, plugin arayüzü)
+- [ ] RIPE Stat API entegrasyonu (`ripe.sh` — announced-prefixes endpoint)
+- [ ] API yanıt parse (JSON parse — jsonfilter veya Lua cjson)
+- [ ] Prefix listesini dosyaya kaydetme (önbellek temel yapısı)
+- [ ] Girdi validasyonu: ASN numarası format kontrolü *(Bölüm 10)*
 
-- [ ] luci-app-mergen paketi
-- [ ] Genel bakış sayfası
-- [ ] Kural yönetim sayfası
-- [ ] ASN tarayıcı/önizleme
-- [ ] Provider ayarları
-- [ ] Log görüntüleyici
+**Rule Engine — Temel** *(Bölüm 5.2.2)*:
+- [ ] Kural ekleme/silme (UCI'ye yazma)
+- [ ] Kural listeleme (UCI'den okuma, formatlı çıktı)
+- [ ] Kural etkinleştirme/devre dışı bırakma
 
-### Faz 4: Gelişmiş Özellikler
+**Route Manager — Temel** *(Bölüm 5.2.3)*:
+- [ ] `ip rule` ile policy routing tablosu oluşturma
+- [ ] `ip route` ile prefix başına rota ekleme/silme
+- [ ] Routing tablo numarası yönetimi (varsayılan: 100)
+- [ ] Girdi validasyonu: IP/CIDR format kontrolü *(Bölüm 10)*
 
-- [ ] DNS bazlı routing (dnsmasq nftset)
-- [ ] Ülke bazlı toplu ASN ekleme
-- [ ] Trafik istatistikleri (nftables sayaçları)
-- [ ] Failover / health check
-- [ ] mwan3 entegrasyonu
-- [ ] OpenWrt paket deposuna gönderim
+**CLI Komutları — Temel** *(Bölüm 7.2)*:
+- [ ] `mergen add` — ASN veya IP/CIDR kuralı ekleme (`--asn`, `--ip`, `--via`, `--label`, `--priority`)
+- [ ] `mergen remove` — İsme göre kural silme
+- [ ] `mergen list` — Tüm kuralları tablo formatında listeleme
+- [ ] `mergen apply` — Bekleyen kuralları sisteme uygulama
+- [ ] `mergen status` — Daemon durumu, kural sayıları, son sync zamanı
+
+**Kilometre Taşı**: `mergen add --asn 13335 --via wg0 && mergen apply` komutu çalışır, trafik wg0 üzerinden yönlendirilir.
+
+---
+
+### Faz 2: Güvenilirlik ve Güvenlik
+
+Uzaktan erişilen cihazda güvenle çalışabilecek seviyeye getirme. Atomik uygulama, geri alma, performanslı paket eşleştirme.
+
+**Rollback Mekanizması** *(Bölüm 5.2.3, 10)*:
+- [ ] Uygulama öncesi mevcut routing durumunu kaydetme (snapshot)
+- [ ] `mergen rollback` — son uygulama öncesine geri dönme
+- [ ] Atomik uygulama: tüm kurallar başarılıysa tamamla, herhangi biri başarısızsa geri al
+- [ ] Watchdog timer: uygulama sonrası X saniye içinde onay gelmezse otomatik rollback *(Bölüm 8.7)*
+- [ ] Safe mode: uygulama sonrası bağlantı testi (ping hedefi), başarısızsa geri al *(Bölüm 8.7)*
+
+**nftables Set Entegrasyonu** *(Bölüm 5.2.3, 11)*:
+- [ ] nftables set oluşturma (`nft add set` — her kural için ayrı set)
+- [ ] Prefix'leri set'e toplu ekleme (`nft add element`)
+- [ ] ip rule ile nftables set eşleştirme (fwmark tabanlı)
+- [ ] ipset fallback (OpenWrt 22.03 ve öncesi için)
+- [ ] Paket eşleştirme motoru seçimi (nftables vs ipset — otomatik algılama)
+- [ ] Performans doğrulama: 1000 prefix < 5 sn *(Bölüm 11)*
+
+**Loglama Altyapısı** *(Bölüm 8.6)*:
+- [ ] Log seviyeleri: DEBUG, INFO, WARNING, ERROR
+- [ ] Bileşen etiketleme: Resolver, Engine, Route, Provider, Daemon
+- [ ] Syslog entegrasyonu (logread uyumlu)
+- [ ] `mergen log` komutu — `--tail`, `--level` filtreleri *(Bölüm 7.2)*
+
+**Ek CLI Komutları** *(Bölüm 7.2)*:
+- [ ] `mergen show` — tekil kural detayı (prefix listesi dahil)
+- [ ] `mergen enable` / `mergen disable` — kural toggle
+- [ ] `mergen flush` — tüm Mergen route'larını temizle
+- [ ] `mergen diag` — tanı bilgisi (routing tabloları, nft set'ler, arayüz durumları)
+
+**Güvenlik Sertleştirme** *(Bölüm 10)*:
+- [ ] Tüm kullanıcı girdilerinde shell injection koruması (ASN, IP, interface adı)
+- [ ] Prefix sayısı limiti (varsayılan: 10000/kural, 50000/toplam) *(Bölüm 8.7, 11)*
+- [ ] HTTPS zorunluluğu (provider API çağrıları)
+- [ ] UCI dosya izinleri (0600)
+
+**Kilometre Taşı**: Hatalı kural uygulandığında cihaz erişimi kesilmez, otomatik geri alma çalışır.
+
+---
+
+### Faz 3: Çoklu Provider ve Gelişmiş Özellikler
+
+Tüm 6 ASN veri kaynağı, IPv6, otomatik güncelleme, import/export.
+
+**Ek ASN Provider'lar** *(Bölüm 5.2.1, 8.5)*:
+- [ ] bgp.tools provider (`bgptools.sh` — REST API, opsiyonel API key)
+- [ ] bgpview.io provider (`bgpview.sh` — REST API)
+- [ ] MaxMind GeoLite2 provider (`maxmind.sh` — yerel MMDB okuma, çevrimdışı)
+- [ ] RouteViews provider (MRT/RIB dump indirme ve parse)
+- [ ] IRR / RADB provider (whois sorgusu)
+- [ ] Her provider için: zaman aşımı, rate limit, hata yönetimi ayarları *(Bölüm 8.5)*
+
+**Provider Yönetimi** *(Bölüm 5.2.1, 8.5)*:
+- [ ] Öncelik sırasına göre fallback (ilk başarılı sonucu kullan)
+- [ ] Provider sağlık izleme (başarı oranı, ortalama yanıt süresi)
+- [ ] Önbellek yönetimi (TTL bazlı, varsayılan: 24 saat)
+- [ ] `config provider` UCI yapılandırması (per-provider ayarlar)
+
+**IPv6 Desteği** *(Bölüm 5.2.3, 8.7)*:
+- [ ] IPv6 prefix çözümleme (provider'lardan v6 prefix çekme)
+- [ ] `ip -6 rule` + `ip -6 route` ile IPv6 routing
+- [ ] nftables IPv6 set desteği (inet family)
+- [ ] Dual-stack: aynı kural için v4+v6 prefix'leri birlikte yönetme
+- [ ] IPv6 açma/kapama ayarı (`option ipv6_enabled`)
+
+**Gelişmiş Rule Engine** *(Bölüm 5.2.2)*:
+- [ ] Çatışma tespiti: aynı prefix farklı hedeflere yönlendiriliyorsa uyarı
+- [ ] Kural birleştirme (aggregate): küçük CIDR'ları büyük bloklara toplama
+- [ ] Kural gruplama: label/tag sistemi
+
+**YAML Import/Export** *(Bölüm 4.3, 7.2)*:
+- [ ] `mergen import` — YAML/JSON dosyasından kural yükleme
+- [ ] `mergen export` — mevcut kuralları YAML/JSON olarak dışa aktarma
+- [ ] `/etc/mergen/rules.d/` dizininden otomatik yükleme
+
+**Otomatik Güncelleme** *(Bölüm 3.1)*:
+- [ ] Cron entegrasyonu: periyodik prefix güncelleme (`option update_interval`)
+- [ ] `mergen update` komutu — manuel güncelleme tetikleme
+- [ ] Güncelleme sonrası otomatik apply (opsiyonel)
+
+**Hotplug Entegrasyonu** *(Bölüm 9)*:
+- [ ] `/etc/hotplug.d/iface/50-mergen` — interface up/down olaylarında kural yeniden uygulama
+- [ ] VPN tüneli düştüğünde ilgili kuralları pasife çekme
+- [ ] VPN tüneli geldiğinde ilgili kuralları yeniden aktive etme
+
+**Ek CLI** *(Bölüm 7.2)*:
+- [ ] `mergen resolve` — ASN prefix'lerini göster (uygulamadan)
+
+**Kilometre Taşı**: 6 provider çalışır, IPv6 desteklenir, prefix'ler otomatik güncellenir, interface değişikliklerinde kurallar dinamik uyarlanır.
+
+---
+
+### Faz 4: LuCI — Temel Sayfalar
+
+Web panelinden çalışan temel kural yönetimi. Dört çekirdek sayfa.
+
+**Paket Altyapısı** *(Bölüm 9)*:
+- [ ] luci-app-mergen paket yapısı (Makefile, controller, model, view)
+- [ ] LuCI menü entegrasyonu (Services -> Mergen)
+- [ ] CSS/JS statik dosyalar (`htdocs/luci-static/mergen/`)
+- [ ] RPC backend (ubus veya luci-mod-rpc üzerinden mergen komutlarına erişim)
+
+**8.1 Genel Bakış Sayfası** *(Bölüm 8.1)*:
+- [ ] Durum kartları: daemon durumu, toplam kural, toplam prefix, son/sonraki sync
+- [ ] Aktif kurallar özet tablosu (ad, tür, hedef, arayüz, prefix sayısı, durum badge)
+- [ ] Hızlı eylemler: [Tümünü Uygula], [Prefix Güncelle], [Daemon Yeniden Başlat]
+- [ ] Son 10 işlem akışı (zaman damgası, işlem türü, sonuç)
+
+**8.2 Kurallar Sayfası — Temel** *(Bölüm 8.2)*:
+- [ ] Kural listesi tablosu (durum toggle, ad, tür, hedef, arayüz, prefix, öncelik)
+- [ ] Yeni kural ekleme formu (ASN/IP seçimi, arayüz dropdown, öncelik, label)
+- [ ] Kural düzenleme (inline veya modal form)
+- [ ] Kural silme (onay dialogu)
+- [ ] ASN/IP girdi validasyonu (format kontrolü, geçerlilik sorgusu)
+
+**8.5 Provider Ayarları — Temel** *(Bölüm 8.5)*:
+- [ ] Provider listesi (ad, durum toggle, öncelik, son sorgu zamanı)
+- [ ] Provider aktif/pasif toggle
+- [ ] Per-provider ayar formları (API URL, timeout, rate limit)
+- [ ] MaxMind: veritabanı yolu, lisans anahtarı, güncelleme durumu
+
+**8.7 Gelişmiş Ayarlar — Temel** *(Bölüm 8.7)*:
+- [ ] Routing tablo numarası ayarı
+- [ ] Paket eşleştirme motoru seçimi (nftables/ipset)
+- [ ] IPv6 toggle
+- [ ] Prefix limiti ayarları
+- [ ] Güncelleme aralığı ayarı
+
+**Kilometre Taşı**: Kullanıcı LuCI'den kural ekleyip uygulayabilir, provider ayarlarını değiştirebilir.
+
+---
+
+### Faz 5: LuCI — Gelişmiş Sayfalar
+
+Tüm 7 sayfanın tam özellikli hali. İleri düzey etkileşimler.
+
+**8.2 Kurallar Sayfası — Gelişmiş** *(Bölüm 8.2)*:
+- [ ] Sürükle-bırak ile kural önceliklendirme
+- [ ] Toplu işlemler: çoklu seçim, toplu aktif/pasif, toplu silme, toplu arayüz değiştirme
+- [ ] Kural kopyalama
+- [ ] YAML/JSON olarak seçili kuralları dışa aktarma
+
+**8.3 ASN Tarayıcı Sayfası** *(Bölüm 8.3)*:
+- [ ] ASN numarası ile arama
+- [ ] Organizasyon adı ile arama
+- [ ] IP adresi ile ters ASN arama
+- [ ] ASN detay paneli (organizasyon, ülke, RIR, prefix sayıları, kaynak provider)
+- [ ] Prefix listesi önizleme (sayfalanmış tablo, v4/v6 filtre, sıralama)
+- [ ] [Bu ASN için Kural Ekle] — tek tıkla kural oluşturma
+- [ ] Karşılaştırma modu: birden fazla ASN yan yana, ortak prefix vurgulama
+
+**8.4 Arayüzler Sayfası** *(Bölüm 8.4)*:
+- [ ] Arayüz listesi (ad, tür, durum, IP, gateway, Mergen kural/prefix sayısı, trafik)
+- [ ] Arayüz detay paneli (atanmış kurallar, routing tablosu, nft set içeriği)
+- [ ] Bağlantı testi: [Ping Gateway], [Traceroute]
+- [ ] Sağlık kontrolü: ping sonuçları, gecikme/paket kaybı metrikleri
+- [ ] Arayüz up/down geçmişi (son 24 saat)
+
+**8.6 Loglar Sayfası** *(Bölüm 8.6)*:
+- [ ] Canlı log akışı (otomatik kaydırma, duraklatma/devam)
+- [ ] Filtreleme: log seviyesi, bileşen, kural adı, zaman aralığı, regex metin arama
+- [ ] Log satırı detay paneli (bağlam bilgisi, ilişkili kural/provider/prefix)
+- [ ] Dışa aktarma: filtrelenmiş logları .log olarak indirme
+- [ ] Tanı Paketi Oluştur (loglar + config + sistem bilgisi)
+
+**8.7 Gelişmiş Ayarlar — Tam** *(Bölüm 8.7)*:
+- [ ] Rollback watchdog süresi ayarı
+- [ ] Safe mode yapılandırma (ping hedefi, aktif/pasif)
+- [ ] API zaman aşımı ve paralel sorgu ayarları
+- [ ] [Tüm Route'ları Temizle (Flush)]
+- [ ] [Fabrika Ayarlarına Dön]
+- [ ] [Yapılandırmayı Yedekle] / [Yapılandırmayı Geri Yükle]
+- [ ] Sürüm bilgisi ve güncelleme kontrolü
+
+**8.5 Provider Ayarları — Gelişmiş** *(Bölüm 8.5)*:
+- [ ] Sürükle-bırak ile provider öncelik sıralaması
+- [ ] Başarı oranı ve ortalama yanıt süresi göstergesi
+- [ ] Fallback stratejisi seçimi (sıralı / paralel / sadece önbellek)
+- [ ] [Tüm Önbelleği Temizle]
+- [ ] [Tümünü Test Et] — her provider'a test sorgusu
+
+**Kilometre Taşı**: Tüm 7 LuCI sayfası tam özellikli çalışır, terminal bilmeyen kullanıcı her işlemi web'den yapabilir.
+
+---
+
+### Faz 6: Gelişmiş Özellikler ve Dağıtım
+
+İkincil hedefler *(Bölüm 3.2)* ve topluluk dağıtımı.
+
+**DNS Bazlı Routing** *(Bölüm 3.2)*:
+- [ ] dnsmasq nftset/ipset entegrasyonu
+- [ ] Domain bazlı kural tanımlama (`option domain 'netflix.com'`)
+- [ ] DNS yanıtlarından dinamik IP çözümleme ve set'e ekleme
+
+**Ülke Bazlı Routing** *(Bölüm 3.2)*:
+- [ ] Ülke kodu ile toplu ASN ekleme (`mergen add --country TR --via wg0`)
+- [ ] Ülke -> ASN eşleme veritabanı (MaxMind GeoLite2 Country)
+- [ ] LuCI'de ülke seçici (dropdown ile ülke bazlı kural ekleme)
+
+**Trafik İstatistikleri** *(Bölüm 3.2)*:
+- [ ] nftables sayaçları ile kural başına paket/byte sayımı
+- [ ] LuCI'de kural başına trafik göstergesi
+- [ ] Zaman serisi veri toplama (opsiyonel, collectd entegrasyonu)
+
+**Failover / Health Check** *(Bölüm 3.2, 8.4)*:
+- [ ] Hedef arayüz sağlık kontrolü (periyodik ping)
+- [ ] Arayüz düştüğünde trafiği alternatif arayüze yönlendirme
+- [ ] Arayüz geldiğinde orijinal kurala geri dönme
+- [ ] LuCI'de failover yapılandırması ve durum gösterimi
+
+**mwan3 Entegrasyonu** *(Bölüm 3.1)*:
+- [ ] Mevcut mwan3 kuralları ile çatışma kontrolü
+- [ ] mwan3 policy'lerine Mergen kural enjeksiyonu
+- [ ] Standalone / mwan3 modu seçimi
+
+**Test ve Platform Doğrulama** *(Bölüm 12)*:
+- [ ] Birim testleri (provider, resolver, engine fonksiyonları)
+- [ ] Entegrasyon testleri (UCI -> route uygulama akışı)
+- [ ] E2E testler (LuCI'den kural ekle -> trafik doğrula)
+- [ ] Platform testleri: x86 VM, Raspberry Pi (arm), GL.iNet (mips)
+- [ ] Performans stres testi: 50.000 prefix, 100+ kural *(Bölüm 11)*
+- [ ] OpenWrt 23.05 ve 24.xx sürüm uyumluluk testleri
+
+**Dağıtım** *(Bölüm 15)*:
+- [ ] OpenWrt paket feed'ine PR gönderimi
+- [ ] Kullanıcı dokümantasyonu (kurulum, yapılandırma, CLI referans)
+- [ ] OpenWrt forum duyurusu ve topluluk geri bildirim döngüsü
+
+**Kilometre Taşı**: Tüm birincil ve ikincil hedefler tamamlanır, OpenWrt paket deposunda yayınlanır.
 
 ## 14. Riskler ve Azaltma
 
