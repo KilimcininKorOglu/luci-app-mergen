@@ -47,6 +47,7 @@ Komutlar:
   update     ASN prefix listelerini guncelle
   import     JSON dosyasindan kural yukle
   export     Kurallari JSON veya UCI olarak disa aktar
+  resolve    ASN prefix listesini goruntule (route olusturmadan)
   version    Surum bilgisi goster
   help       Bu yardimi veya komut yardimini goster
 
@@ -288,6 +289,24 @@ Ornekler:
   mergen export
   mergen export --format json --output /tmp/rules.json
   mergen export --format uci
+HELP
+			;;
+		resolve)
+			cat <<'HELP'
+Kullanim: mergen resolve <ASN> [--provider <AD>]
+
+ASN prefix listesini cozumler ve goruntule. Route olusturmaz.
+Sonuclar: IPv4 prefix listesi, IPv6 prefix listesi, toplam sayi, kaynak provider.
+
+Argumanlar:
+  <ASN>                ASN numarasi (orn: 13335, AS15169)
+
+Secenekler:
+  --provider <AD>      Belirli bir provider kullanmaya zorla
+
+Ornekler:
+  mergen resolve 13335
+  mergen resolve AS15169 --provider ripe
 HELP
 			;;
 		version)
@@ -711,6 +730,102 @@ cmd_export() {
 			return 2
 			;;
 	esac
+}
+
+# ── Resolve ───────────────────────────────────────────────
+
+cmd_resolve() {
+	local asn="" provider=""
+
+	if [ $# -eq 0 ]; then
+		printf "[!] Hata: ASN numarasi gerekli. 'mergen help resolve' ile kullanimi gorun.\n" >&2
+		return 2
+	fi
+
+	# First argument is the ASN
+	asn="$1"
+	shift
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--provider)
+				shift
+				if [ -z "$1" ]; then
+					printf "[!] Hata: --provider bir ad gerektirir.\n" >&2
+					return 2
+				fi
+				provider="$1"
+				shift
+				;;
+			*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'. 'mergen help resolve' ile kullanimi gorun.\n" "$1" >&2
+				return 2
+				;;
+		esac
+	done
+
+	# Validate ASN format
+	local clean_asn="$asn"
+	case "$clean_asn" in
+		AS*|as*) clean_asn="${clean_asn#[Aa][Ss]}" ;;
+	esac
+
+	if ! echo "$clean_asn" | grep -qE '^[0-9]+$'; then
+		printf "[!] Hata: Gecersiz ASN numarasi: %s\n" "$asn" >&2
+		return 2
+	fi
+
+	# Validate provider if specified
+	if [ -n "$provider" ] && ! mergen_provider_exists "$provider"; then
+		printf "[!] Hata: Provider bulunamadi: %s\n" "$provider" >&2
+		return 1
+	fi
+
+	# Initialize resolver
+	mergen_resolver_init
+
+	printf "[*] AS%s icin prefix cozumleniyor...\n" "$clean_asn"
+	if [ -n "$provider" ]; then
+		printf "    Provider: %s\n" "$provider"
+	fi
+
+	# Resolve
+	if ! mergen_resolve_asn "$clean_asn" "$provider"; then
+		printf "[!] Hata: AS%s prefix cozumlenemedi.\n" "$clean_asn" >&2
+		return 1
+	fi
+
+	# Display results
+	echo ""
+	printf "ASN:      AS%s\n" "$clean_asn"
+	printf "Provider: %s\n" "$MERGEN_RESOLVE_PROVIDER"
+	echo ""
+
+	# IPv4 prefixes
+	if [ -n "$MERGEN_RESOLVE_RESULT_V4" ]; then
+		printf "IPv4 Prefixler (%s adet):\n" "$MERGEN_RESOLVE_COUNT_V4"
+		echo "$MERGEN_RESOLVE_RESULT_V4" | while IFS= read -r prefix; do
+			[ -n "$prefix" ] && printf "  %s\n" "$prefix"
+		done
+	else
+		printf "IPv4 Prefixler: yok\n"
+	fi
+
+	echo ""
+
+	# IPv6 prefixes
+	if [ -n "$MERGEN_RESOLVE_RESULT_V6" ]; then
+		printf "IPv6 Prefixler (%s adet):\n" "$MERGEN_RESOLVE_COUNT_V6"
+		echo "$MERGEN_RESOLVE_RESULT_V6" | while IFS= read -r prefix; do
+			[ -n "$prefix" ] && printf "  %s\n" "$prefix"
+		done
+	else
+		printf "IPv6 Prefixler: yok\n"
+	fi
+
+	echo ""
+	printf "Toplam: %s IPv4, %s IPv6\n" "$MERGEN_RESOLVE_COUNT_V4" "$MERGEN_RESOLVE_COUNT_V6"
+	return 0
 }
 
 # ── Update ─────────────────────────────────────────────────
@@ -1366,6 +1481,9 @@ if [ "${MERGEN_SOURCED:-0}" != "1" ]; then
 			;;
 		export)
 			shift; cmd_export "$@"
+			;;
+		resolve)
+			shift; cmd_resolve "$@"
 			;;
 		version)
 			cmd_version

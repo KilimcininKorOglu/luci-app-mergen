@@ -119,7 +119,7 @@ Dynamic update of Mergen rules on interface up/down events.
 
 ### T033 - Resolve Command & Phase 3 Tests
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 1 day
 

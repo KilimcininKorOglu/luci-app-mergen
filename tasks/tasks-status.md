@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 16    | 33%        |
+| NOT_STARTED | 15    | 31%        |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 33    | 67%        |
+| COMPLETED   | 34    | 69%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -28,7 +28,7 @@
 | F007    | Logging, CLI & Security         | Phase 2 | 4     | NOT_STARTED |
 | F008    | Multi-Provider System           | Phase 3 | 4     | NOT_STARTED |
 | F009    | IPv6 & Advanced Rule Engine     | Phase 3 | 3     | COMPLETED   |
-| F010    | Import/Export & Automation      | Phase 3 | 4     | NOT_STARTED |
+| F010    | Import/Export & Automation      | Phase 3 | 4     | COMPLETED   |
 | F011    | LuCI Core Pages                 | Phase 4 | 4     | NOT_STARTED |
 | F012    | LuCI Advanced Pages             | Phase 5 | 4     | NOT_STARTED |
 | F013    | Advanced Features               | Phase 6 | 4     | NOT_STARTED |
@@ -83,7 +83,7 @@
 | T030 | F010    | JSON Import/Export                | P2       | 2d     | COMPLETED   | T007, T010   |
 | T031 | F010    | Cron Auto-Update                  | P2       | 1.5d   | COMPLETED   | T006, T010   |
 | T032 | F010    | Hotplug Integration               | P2       | 1.5d   | COMPLETED   | T010, T012   |
-| T033 | F010    | Resolve Command & Phase 3 Tests   | P3       | 1d     | NOT_STARTED | T005, T023   |
+| T033 | F010    | Resolve Command & Phase 3 Tests   | P3       | 1d     | COMPLETED   | T005, T023   |
 
 ### Phase 4: LuCI Core Pages (4 tasks)
 
