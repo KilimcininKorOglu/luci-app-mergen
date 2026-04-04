@@ -1,0 +1,37 @@
+{
+	"luci-app-mergen": {
+		"description": "Grant access to Mergen ASN/IP routing configuration",
+		"read": {
+			"ubus": {
+				"service": ["list"],
+				"uci": ["mergen"]
+			},
+			"uci": ["mergen"],
+			"file": {
+				"/usr/bin/mergen status": ["exec"],
+				"/usr/bin/mergen list": ["exec"],
+				"/usr/bin/mergen export *": ["exec"],
+				"/usr/bin/mergen show *": ["exec"],
+				"/usr/bin/mergen validate": ["exec"],
+				"/usr/bin/mergen resolve *": ["exec"],
+				"/tmp/mergen/*": ["read"]
+			}
+		},
+		"write": {
+			"uci": ["mergen"],
+			"file": {
+				"/usr/bin/mergen add *": ["exec"],
+				"/usr/bin/mergen remove *": ["exec"],
+				"/usr/bin/mergen enable *": ["exec"],
+				"/usr/bin/mergen disable *": ["exec"],
+				"/usr/bin/mergen apply *": ["exec"],
+				"/usr/bin/mergen update *": ["exec"],
+				"/usr/bin/mergen flush *": ["exec"],
+				"/usr/bin/mergen rollback": ["exec"],
+				"/usr/bin/mergen confirm": ["exec"],
+				"/usr/bin/mergen tag *": ["exec"],
+				"/usr/bin/mergen import *": ["exec"]
+			}
+		}
+	}
+}

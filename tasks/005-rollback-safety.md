@@ -10,7 +10,7 @@ Safe rule application for remotely managed devices. Atomic apply, state snapshot
 
 ### T014 - Routing State Snapshot & Rollback
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 2.5 days
 
@@ -43,7 +43,7 @@ Mechanism for saving the current routing state before apply and restoring it.
 
 ### T015 - Atomic Apply
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 2 days
 
@@ -73,7 +73,7 @@ All rules are either fully applied or none are applied. Automatic rollback on an
 
 ### T016 - Watchdog Timer & Safe Mode
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 2 days
 

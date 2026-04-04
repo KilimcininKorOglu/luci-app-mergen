@@ -1,0 +1,141 @@
+<link rel="stylesheet" href="<%=resource%>/mergen/mergen.css" />
+
+<h3><%:Provider Maintenance%></h3>
+
+<div class="mergen-actions">
+	<button class="cbi-button cbi-button-action" id="mergen-test-all-btn">
+		<%:Test All Providers%>
+	</button>
+
+	<button class="cbi-button cbi-button-reset" id="mergen-clear-cache-btn">
+		<%:Clear All Cache%>
+	</button>
+</div>
+
+<div id="mergen-provider-results" style="display:none; margin-top:1rem">
+	<h4><%:Test Results%></h4>
+	<div id="mergen-provider-results-content" class="mergen-log"></div>
+</div>
+
+<script src="<%=resource%>/mergen/mergen.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+	var resultsEl = document.getElementById('mergen-provider-results');
+	var resultsContent = document.getElementById('mergen-provider-results-content');
+
+	function showResults(text) {
+		resultsContent.textContent = text;
+		resultsEl.style.display = 'block';
+	}
+
+	/* ── Test All Providers ── */
+	document.getElementById('mergen-test-all-btn').addEventListener('click', function(e) {
+		e.preventDefault();
+		var btn = this;
+		btn.disabled = true;
+		btn.textContent = '<%:Testing...%>';
+		MergenUI.rpcCall('test_provider', {
+			provider: ''
+		}).then(function(data) {
+			btn.disabled = false;
+			btn.textContent = '<%:Test All Providers%>';
+			if (data.success) {
+				showResults(data.output || 'Test completed');
+			} else {
+				showResults('Error: ' + (data.error || 'Unknown error'));
+			}
+		}).catch(function(err) {
+			btn.disabled = false;
+			btn.textContent = '<%:Test All Providers%>';
+			showResults('Error: ' + err.message);
+		});
+	});
+
+	/* ── Clear All Cache ── */
+	document.getElementById('mergen-clear-cache-btn').addEventListener('click', function(e) {
+		e.preventDefault();
+		if (!confirm('<%:This will clear all provider caches. Prefixes will be re-fetched on next update. Continue?%>')) return;
+		var btn = this;
+		btn.disabled = true;
+		MergenUI.rpcCall('clear_cache', {}).then(function(data) {
+			btn.disabled = false;
+			if (data.success) {
+				showResults(data.output || 'Cache cleared');
+			} else {
+				showResults('Error: ' + (data.error || 'Unknown error'));
+			}
+		}).catch(function(err) {
+			btn.disabled = false;
+			showResults('Error: ' + err.message);
+		});
+	});
+
+	/* ── Enhance provider table rows with Test buttons ── */
+	var provTable = document.querySelector('.cbi-section-table');
+	if (provTable) {
+		var headerRow = provTable.querySelector('.cbi-section-table-titles');
+		if (headerRow) {
+			var thTest = document.createElement('th');
+			thTest.className = 'cbi-section-table-cell';
+			thTest.textContent = '<%:Test%>';
+			/* Insert before the last header (actions column) */
+			var lastTh = headerRow.lastElementChild;
+			headerRow.insertBefore(thTest, lastTh);
+		}
+
+		var rows = provTable.querySelectorAll('.cbi-section-table-row');
+		for (var i = 0; i < rows.length; i++) {
+			(function(row) {
+				var sectionId = '';
+				var id = row.id || '';
+				var match = id.match(/^cbi-mergen-(.+)$/);
+				if (match) sectionId = match[1];
+
+				if (!sectionId) return;
+
+				var tdTest = document.createElement('td');
+				tdTest.className = 'cbi-section-table-cell';
+				var testBtn = document.createElement('button');
+				testBtn.className = 'cbi-button cbi-button-neutral mergen-btn-test-provider';
+				testBtn.textContent = '<%:Test%>';
+				testBtn.setAttribute('data-provider', sectionId);
+				testBtn.addEventListener('click', function(ev) {
+					ev.preventDefault();
+					var provName = this.getAttribute('data-provider');
+					this.disabled = true;
+					this.textContent = '...';
+					var self = this;
+					MergenUI.rpcCall('test_provider', {
+						provider: provName
+					}).then(function(data) {
+						self.disabled = false;
+						if (data.test_passed) {
+							self.textContent = 'OK';
+							self.className = 'cbi-button cbi-button-apply mergen-btn-test-provider';
+						} else {
+							self.textContent = 'FAIL';
+							self.className = 'cbi-button cbi-button-reset mergen-btn-test-provider';
+						}
+						showResults(data.output || 'Test completed for ' + provName);
+						/* Reset button text after 5 seconds */
+						setTimeout(function() {
+							self.textContent = '<%:Test%>';
+							self.className = 'cbi-button cbi-button-neutral mergen-btn-test-provider';
+						}, 5000);
+					}).catch(function(err) {
+						self.disabled = false;
+						self.textContent = '<%:Test%>';
+						showResults('Error: ' + err.message);
+					});
+				});
+				tdTest.appendChild(testBtn);
+
+				/* Insert before last cell (actions) */
+				var lastCell = row.lastElementChild;
+				row.insertBefore(tdTest, lastCell);
+			})(rows[i]);
+		}
+	}
+});
+</script>

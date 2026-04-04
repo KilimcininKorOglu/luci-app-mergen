@@ -10,7 +10,7 @@ nftables set and ipset fallback implementation for performant packet matching. F
 
 ### T017 - nftables Set Management
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 2.5 days
 
@@ -43,7 +43,7 @@ Creating an nftables set for each rule, bulk-adding prefixes to the set, and fwm
 
 ### T018 - ipset Fallback
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 1.5 days
 

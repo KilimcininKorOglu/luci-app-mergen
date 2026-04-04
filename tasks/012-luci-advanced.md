@@ -10,7 +10,7 @@ Full-featured version of all 7 LuCI pages: drag-and-drop, bulk operations, ASN b
 
 ### T038 - Rules Page Advanced (Drag-Drop, Bulk Ops)
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 2 days
 
@@ -41,7 +41,7 @@ Advanced features of the rules page: drag-and-drop prioritization, bulk operatio
 
 ### T039 - ASN Browser Page
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 3 days
 
@@ -76,7 +76,7 @@ ASN discovery tool: search, detail panel, prefix preview, one-click rule creatio
 
 ### T040 - Interfaces & Logs Pages
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 3 days
 
@@ -118,7 +118,7 @@ Interface status / health check page and live log viewer / filtering page.
 
 ### T041 - Advanced Settings Full & Provider Advanced
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 2 days
 

@@ -10,7 +10,7 @@ luci-app-mergen package infrastructure, RPC backend and 4 core LuCI pages: Overv
 
 ### T034 - LuCI Package Scaffold & RPC Backend
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 2.5 days
 
@@ -51,7 +51,7 @@ luci-app-mergen package structure, LuCI menu integration and RPC access layer fo
 
 ### T035 - Overview Page
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 2 days
 
@@ -83,7 +83,7 @@ Status cards, active rules summary table, quick actions and recent operations fe
 
 ### T036 - Rules Page (Basic CRUD)
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 3 days
 
@@ -121,7 +121,7 @@ Rule listing, adding, editing, deleting and validation. Core functionality of PR
 
 ### T037 - Provider Settings & Advanced Settings Pages (Basic)
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 2.5 days
 

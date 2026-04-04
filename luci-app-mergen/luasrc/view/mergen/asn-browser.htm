@@ -1,0 +1,452 @@
+<%+header%>
+
+<link rel="stylesheet" href="<%=resource%>/mergen/mergen.css" />
+
+<h2><%:Mergen%> - <%:ASN Browser%></h2>
+
+<p><%:Search for ASN information, view announced prefixes and create routing rules.%></p>
+
+<%
+	local sys = require "luci.sys"
+	local uci = require "luci.model.uci".cursor()
+
+	-- Build interface list for the dropdown
+	local ifaces = {}
+	local devs = sys.net.devices() or {}
+	for _, dev in ipairs(devs) do
+		if dev ~= "lo" then
+			ifaces[#ifaces + 1] = { value = dev, label = dev }
+		end
+	end
+	uci:foreach("network", "interface", function(s)
+		local ifname = s[".name"]
+		if ifname and ifname ~= "loopback" then
+			ifaces[#ifaces + 1] = { value = ifname, label = ifname .. " (logical)" }
+		end
+	end)
+%>
+
+<!-- Search Section -->
+<div class="mergen-asn-search">
+	<div class="mergen-search-row">
+		<input type="text" id="asn-search-input" class="cbi-input-text"
+			placeholder="<%:ASN number, org name or IP address%>"
+			autocomplete="off">
+		<button class="cbi-button cbi-button-apply" id="asn-search-btn"
+			onclick="MergenASN.search(); return false;">
+			<%:Search%>
+		</button>
+		<button class="cbi-button cbi-button-neutral" id="asn-compare-btn"
+			onclick="MergenASN.addToCompare(); return false;"
+			title="<%:Add current ASN to comparison%>">
+			<%:Compare%>
+		</button>
+	</div>
+	<div id="asn-search-hint" class="mergen-search-hint" style="display:none"></div>
+</div>
+
+<!-- Loading Indicator -->
+<div id="asn-loading" class="mergen-loading" style="display:none">
+	<span><%:Resolving...%></span>
+</div>
+
+<!-- ASN Detail Panel -->
+<div id="asn-detail" style="display:none">
+	<div class="mergen-cards">
+		<div class="mergen-card">
+			<h4>ASN</h4>
+			<div class="value" id="asn-number">-</div>
+		</div>
+		<div class="mergen-card">
+			<h4><%:Provider%></h4>
+			<div class="value" id="asn-provider">-</div>
+		</div>
+		<div class="mergen-card">
+			<h4><%:IPv4 Prefixes%></h4>
+			<div class="value" id="asn-v4-count">0</div>
+		</div>
+		<div class="mergen-card">
+			<h4><%:IPv6 Prefixes%></h4>
+			<div class="value" id="asn-v6-count">0</div>
+		</div>
+	</div>
+
+	<!-- Quick Add Rule -->
+	<div class="mergen-asn-add-rule">
+		<h4><%:Add Rule for This ASN%></h4>
+		<div class="mergen-add-rule-form">
+			<input type="text" id="asn-rule-name" class="cbi-input-text"
+				placeholder="<%:Rule Name%>" maxlength="32">
+			<select id="asn-rule-via" class="cbi-input-select">
+				<option value="">-- <%:Interface%> --</option>
+				<% for _, iface in ipairs(ifaces) do %>
+				<option value="<%=iface.value%>"><%=iface.label%></option>
+				<% end %>
+			</select>
+			<button class="cbi-button cbi-button-apply"
+				onclick="MergenASN.addRule(); return false;">
+				<%:Add Rule%>
+			</button>
+		</div>
+	</div>
+
+	<!-- Prefix Filter -->
+	<div class="mergen-prefix-filter">
+		<label>
+			<input type="radio" name="prefix-filter" value="all" checked
+				onchange="MergenASN.filterPrefixes(this.value)">
+			<%:All%>
+		</label>
+		<label>
+			<input type="radio" name="prefix-filter" value="v4"
+				onchange="MergenASN.filterPrefixes(this.value)">
+			IPv4
+		</label>
+		<label>
+			<input type="radio" name="prefix-filter" value="v6"
+				onchange="MergenASN.filterPrefixes(this.value)">
+			IPv6
+		</label>
+		<span class="mergen-prefix-page-info" id="prefix-page-info"></span>
+	</div>
+
+	<!-- Prefix Table -->
+	<table class="mergen-rules-table" id="asn-prefix-table">
+		<thead>
+			<tr>
+				<th>#</th>
+				<th><%:Prefix%></th>
+				<th><%:Type%></th>
+			</tr>
+		</thead>
+		<tbody id="asn-prefix-body"></tbody>
+	</table>
+
+	<!-- Pagination -->
+	<div class="mergen-pagination" id="prefix-pagination"></div>
+</div>
+
+<!-- Comparison Panel -->
+<div id="asn-compare-panel" style="display:none">
+	<h3><%:ASN Comparison%></h3>
+	<div class="mergen-compare-controls">
+		<button class="cbi-button cbi-button-remove"
+			onclick="MergenASN.clearCompare(); return false;">
+			<%:Clear Comparison%>
+		</button>
+	</div>
+	<div id="asn-compare-grid" class="mergen-compare-grid"></div>
+	<div id="asn-common-prefixes" style="display:none">
+		<h4><%:Common Prefixes%></h4>
+		<div id="asn-common-list" class="mergen-log"></div>
+	</div>
+</div>
+
+<script src="<%=resource%>/mergen/mergen.js"></script>
+
+<script>
+/* ASN Browser Page Logic */
+var MergenASN = {
+
+	currentResult: null,
+	compareList: [],
+	prefixPage: 1,
+	prefixPageSize: 50,
+	prefixFilter: 'all',
+	searchTimer: null,
+
+	search: function() {
+		var input = document.getElementById('asn-search-input');
+		var query = (input.value || '').trim();
+		if (!query) return;
+
+		document.getElementById('asn-loading').style.display = 'block';
+		document.getElementById('asn-detail').style.display = 'none';
+		document.getElementById('asn-search-hint').style.display = 'none';
+
+		MergenUI.rpcCall('resolve', { asn: query }).then(function(data) {
+			document.getElementById('asn-loading').style.display = 'none';
+			if (data.success && data.result) {
+				MergenASN.currentResult = data.result;
+				MergenASN.prefixPage = 1;
+				MergenASN.renderDetail(data.result);
+			} else {
+				MergenASN.showHint(data.error || '<%:ASN not found or resolve failed%>', 'err');
+			}
+		}).catch(function(err) {
+			document.getElementById('asn-loading').style.display = 'none';
+			MergenASN.showHint('<%:Error%>: ' + err.message, 'err');
+		});
+	},
+
+	showHint: function(msg, type) {
+		var hint = document.getElementById('asn-search-hint');
+		hint.textContent = msg;
+		hint.className = 'mergen-search-hint mergen-hint-' + (type || 'info');
+		hint.style.display = 'block';
+	},
+
+	renderDetail: function(result) {
+		document.getElementById('asn-detail').style.display = 'block';
+		document.getElementById('asn-number').textContent = 'AS' + result.asn;
+		document.getElementById('asn-provider').textContent = result.provider || '-';
+		document.getElementById('asn-v4-count').textContent = result.total_v4;
+		document.getElementById('asn-v6-count').textContent = result.total_v6;
+
+		/* Default rule name suggestion */
+		var nameInput = document.getElementById('asn-rule-name');
+		if (nameInput && !nameInput.value) {
+			nameInput.value = 'asn-' + result.asn;
+		}
+
+		this.renderPrefixes();
+	},
+
+	filterPrefixes: function(filter) {
+		this.prefixFilter = filter;
+		this.prefixPage = 1;
+		this.renderPrefixes();
+	},
+
+	renderPrefixes: function() {
+		var result = this.currentResult;
+		if (!result) return;
+
+		var all = [];
+		if (this.prefixFilter === 'all' || this.prefixFilter === 'v4') {
+			for (var i = 0; i < result.prefixes_v4.length; i++) {
+				all.push({ prefix: result.prefixes_v4[i], type: 'IPv4' });
+			}
+		}
+		if (this.prefixFilter === 'all' || this.prefixFilter === 'v6') {
+			for (var j = 0; j < result.prefixes_v6.length; j++) {
+				all.push({ prefix: result.prefixes_v6[j], type: 'IPv6' });
+			}
+		}
+
+		var start = (this.prefixPage - 1) * this.prefixPageSize;
+		var end = Math.min(start + this.prefixPageSize, all.length);
+		var page = all.slice(start, end);
+
+		var tbody = document.getElementById('asn-prefix-body');
+		tbody.innerHTML = '';
+
+		if (page.length === 0) {
+			tbody.innerHTML = '<tr><td colspan="3"><%:No prefixes found%></td></tr>';
+		} else {
+			for (var k = 0; k < page.length; k++) {
+				var tr = document.createElement('tr');
+				tr.innerHTML = '<td>' + (start + k + 1) + '</td>'
+					+ '<td><code>' + page[k].prefix + '</code></td>'
+					+ '<td>' + page[k].type + '</td>';
+				tbody.appendChild(tr);
+			}
+		}
+
+		/* Page info */
+		var info = document.getElementById('prefix-page-info');
+		info.textContent = (start + 1) + '-' + end + ' / ' + all.length;
+
+		/* Pagination controls */
+		var totalPages = Math.ceil(all.length / this.prefixPageSize);
+		var pag = document.getElementById('prefix-pagination');
+		pag.innerHTML = '';
+
+		if (totalPages > 1) {
+			if (this.prefixPage > 1) {
+				var prev = document.createElement('button');
+				prev.className = 'cbi-button cbi-button-neutral';
+				prev.textContent = '< <%:Prev%>';
+				prev.onclick = function() {
+					MergenASN.prefixPage--;
+					MergenASN.renderPrefixes();
+				};
+				pag.appendChild(prev);
+			}
+
+			var span = document.createElement('span');
+			span.className = 'mergen-page-num';
+			span.textContent = ' ' + this.prefixPage + ' / ' + totalPages + ' ';
+			pag.appendChild(span);
+
+			if (this.prefixPage < totalPages) {
+				var next = document.createElement('button');
+				next.className = 'cbi-button cbi-button-neutral';
+				next.textContent = '<%:Next%> >';
+				next.onclick = function() {
+					MergenASN.prefixPage++;
+					MergenASN.renderPrefixes();
+				};
+				pag.appendChild(next);
+			}
+		}
+	},
+
+	addRule: function() {
+		if (!this.currentResult) return;
+		var name = document.getElementById('asn-rule-name').value.trim();
+		var via = document.getElementById('asn-rule-via').value;
+		var asn = this.currentResult.asn;
+
+		if (!name) { alert('<%:Rule name is required%>'); return; }
+		if (!via) { alert('<%:Interface is required%>'); return; }
+
+		MergenUI.rpcCall('add_rule', {
+			name: name,
+			asn: String(asn),
+			via: via
+		}).then(function(data) {
+			if (data.success) {
+				alert(data.output);
+				document.getElementById('asn-rule-name').value = '';
+			} else {
+				alert(data.error || '<%:Failed to create rule%>');
+			}
+		}).catch(function(err) {
+			alert('<%:Error%>: ' + err.message);
+		});
+	},
+
+	/* ── Comparison Mode ── */
+
+	addToCompare: function() {
+		if (!this.currentResult) {
+			alert('<%:Search for an ASN first%>');
+			return;
+		}
+
+		/* Check if already in compare list */
+		for (var i = 0; i < this.compareList.length; i++) {
+			if (this.compareList[i].asn === this.currentResult.asn) {
+				alert('AS' + this.currentResult.asn + ' <%:is already in comparison%>');
+				return;
+			}
+		}
+
+		if (this.compareList.length >= 4) {
+			alert('<%:Maximum 4 ASNs can be compared%>');
+			return;
+		}
+
+		this.compareList.push(JSON.parse(JSON.stringify(this.currentResult)));
+		this.renderCompare();
+	},
+
+	clearCompare: function() {
+		this.compareList = [];
+		document.getElementById('asn-compare-panel').style.display = 'none';
+	},
+
+	renderCompare: function() {
+		if (this.compareList.length < 2) {
+			document.getElementById('asn-compare-panel').style.display =
+				this.compareList.length > 0 ? 'block' : 'none';
+		} else {
+			document.getElementById('asn-compare-panel').style.display = 'block';
+		}
+
+		var grid = document.getElementById('asn-compare-grid');
+		grid.innerHTML = '';
+
+		for (var i = 0; i < this.compareList.length; i++) {
+			var item = this.compareList[i];
+			var card = document.createElement('div');
+			card.className = 'mergen-compare-card';
+			card.innerHTML = '<h4>AS' + item.asn + '</h4>'
+				+ '<div><%:Provider%>: ' + (item.provider || '-') + '</div>'
+				+ '<div>IPv4: ' + item.total_v4 + ' | IPv6: ' + item.total_v6 + '</div>'
+				+ '<button class="cbi-button cbi-button-remove" '
+				+ 'onclick="MergenASN.removeFromCompare(' + i + ')">X</button>';
+			grid.appendChild(card);
+		}
+
+		/* Find common prefixes if 2+ ASNs */
+		if (this.compareList.length >= 2) {
+			this.findCommonPrefixes();
+		} else {
+			document.getElementById('asn-common-prefixes').style.display = 'none';
+		}
+	},
+
+	removeFromCompare: function(idx) {
+		this.compareList.splice(idx, 1);
+		this.renderCompare();
+		if (this.compareList.length === 0) {
+			document.getElementById('asn-compare-panel').style.display = 'none';
+		}
+	},
+
+	findCommonPrefixes: function() {
+		if (this.compareList.length < 2) return;
+
+		/* Build sets of all prefixes for each ASN */
+		var sets = [];
+		for (var i = 0; i < this.compareList.length; i++) {
+			var s = {};
+			var item = this.compareList[i];
+			for (var j = 0; j < item.prefixes_v4.length; j++) {
+				s[item.prefixes_v4[j]] = true;
+			}
+			for (var k = 0; k < item.prefixes_v6.length; k++) {
+				s[item.prefixes_v6[k]] = true;
+			}
+			sets.push(s);
+		}
+
+		/* Intersection: prefixes present in ALL sets */
+		var common = [];
+		var first = sets[0];
+		for (var prefix in first) {
+			var inAll = true;
+			for (var m = 1; m < sets.length; m++) {
+				if (!sets[m][prefix]) {
+					inAll = false;
+					break;
+				}
+			}
+			if (inAll) common.push(prefix);
+		}
+
+		var panel = document.getElementById('asn-common-prefixes');
+		var list = document.getElementById('asn-common-list');
+
+		if (common.length > 0) {
+			panel.style.display = 'block';
+			list.innerHTML = '';
+			common.sort();
+			for (var n = 0; n < common.length; n++) {
+				var div = document.createElement('div');
+				div.className = 'log-entry';
+				div.innerHTML = '<code>' + common[n] + '</code>';
+				list.appendChild(div);
+			}
+		} else {
+			panel.style.display = 'block';
+			list.innerHTML = '<div class="log-entry"><%:No common prefixes found%></div>';
+		}
+	}
+};
+
+/* Debounced search: trigger after 300ms of no typing */
+document.addEventListener('DOMContentLoaded', function() {
+	var input = document.getElementById('asn-search-input');
+	if (input) {
+		input.addEventListener('keyup', function(e) {
+			if (e.key === 'Enter') {
+				MergenASN.search();
+				return;
+			}
+			clearTimeout(MergenASN.searchTimer);
+			var val = input.value.trim();
+			/* Only auto-search for pure numeric ASN inputs */
+			if (val.match(/^[Aa]?[Ss]?\d{3,}$/)) {
+				MergenASN.searchTimer = setTimeout(function() {
+					MergenASN.search();
+				}, 300);
+			}
+		});
+	}
+});
+</script>
+
+<%+footer%>

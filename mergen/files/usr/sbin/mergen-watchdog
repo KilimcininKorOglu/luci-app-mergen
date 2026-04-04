@@ -1,0 +1,244 @@
+#!/bin/sh
+# Mergen Watchdog Daemon
+# Periodic prefix updates, status file maintenance, and health monitoring
+# Managed by procd via /etc/init.d/mergen
+
+MERGEN_LIB_DIR="${MERGEN_LIB_DIR:-/usr/lib/mergen}"
+MERGEN_TMP="${MERGEN_TMP:-/tmp/mergen}"
+MERGEN_STATUS_FILE="${MERGEN_TMP}/status.json"
+MERGEN_PID_FILE="/var/run/mergen.pid"
+
+# Watchdog poll interval (seconds) — how often the daemon wakes up
+WATCHDOG_CHECK_INTERVAL="${WATCHDOG_CHECK_INTERVAL:-60}"
+
+# Load OpenWrt shell functions
+type config_load >/dev/null 2>&1 || { [ -f /lib/functions.sh ] && . /lib/functions.sh; }
+
+# Load Mergen libraries
+type mergen_log >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/core.sh"
+type mergen_rule_get >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/engine.sh"
+type mergen_resolve_asn >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/resolver.sh"
+type mergen_route_apply >/dev/null 2>&1 || . "${MERGEN_LIB_DIR}/route.sh"
+
+# Ensure directories exist
+[ -d "$MERGEN_TMP" ] || mkdir -p "$MERGEN_TMP"
+
+# ── State Variables ────────────────────────────────────────
+
+_watchdog_running=1
+_watchdog_start_time=0
+_watchdog_last_update=0
+
+# ── Signal Handling ────────────────────────────────────────
+
+_watchdog_shutdown() {
+	mergen_log "info" "Watchdog" "Kapatma sinyali alindi..."
+	_watchdog_running=0
+}
+
+# ── Status File ────────────────────────────────────────────
+
+# Write daemon status to /tmp/mergen/status.json
+# Called periodically by the main loop
+watchdog_write_status() {
+	local total_rules active_rules disabled_rules
+	total_rules="$(mergen_count_rules)"
+	active_rules="$(mergen_count_rules_enabled 1)"
+	disabled_rules="$(mergen_count_rules_enabled 0)"
+
+	local now
+	now="$(date +%s)"
+	local uptime=$((now - _watchdog_start_time))
+
+	# Count cached ASNs
+	local cached_asns=0
+	if [ -d "${MERGEN_TMP}/cache" ]; then
+		cached_asns="$(ls -1 "${MERGEN_TMP}/cache"/AS*.meta 2>/dev/null | wc -l | tr -d ' ')"
+	fi
+
+	# Read last sync time
+	local last_sync=0
+	local last_sync_file="${MERGEN_TMP}/last_sync"
+	[ -f "$last_sync_file" ] && last_sync="$(cat "$last_sync_file" 2>/dev/null)"
+	[ -z "$last_sync" ] && last_sync=0
+
+	# Count failover-active rules
+	local failover_count=0
+	if [ -d "${MERGEN_TMP}/failover" ]; then
+		failover_count="$(ls -1 "${MERGEN_TMP}/failover" 2>/dev/null | wc -l | tr -d ' ')"
+	fi
+
+	# Write JSON status (manual construction — no jq dependency)
+	cat > "$MERGEN_STATUS_FILE" <<STATUSEOF
+{
+	"version": "0.1.0",
+	"daemon": "active",
+	"pid": $$,
+	"uptime": ${uptime},
+	"rules": {
+		"total": ${total_rules},
+		"active": ${active_rules},
+		"disabled": ${disabled_rules},
+		"failover": ${failover_count}
+	},
+	"cache": {
+		"cached_asns": ${cached_asns}
+	},
+	"last_check": ${now},
+	"last_update": ${_watchdog_last_update},
+	"last_sync": ${last_sync}
+}
+STATUSEOF
+}
+
+# ── Update Check ──────────────────────────────────────────
+
+# Check if prefix data needs refreshing based on update_interval
+# Acquires lock, runs apply_all, releases lock
+watchdog_check_updates() {
+	local now
+	now="$(date +%s)"
+
+	# Read update interval from UCI
+	mergen_uci_get "global" "update_interval" "86400"
+	local interval="$MERGEN_UCI_RESULT"
+
+	# Read last sync timestamp
+	local last_sync_file="${MERGEN_TMP}/last_sync"
+	local last_sync=0
+	[ -f "$last_sync_file" ] && last_sync="$(cat "$last_sync_file" 2>/dev/null)"
+	[ -z "$last_sync" ] && last_sync=0
+
+	local elapsed=$((now - last_sync))
+
+	if [ "$elapsed" -ge "$interval" ]; then
+		mergen_log "info" "Watchdog" "Guncelleme zamani geldi (${elapsed}s >= ${interval}s)"
+
+		# Acquire lock with short timeout (don't block the daemon)
+		if mergen_lock_acquire 10; then
+			mergen_route_apply_all
+			date +%s > "$last_sync_file"
+			_watchdog_last_update="$(date +%s)"
+			mergen_lock_release
+			mergen_log "info" "Watchdog" "Prefix guncelleme tamamlandi"
+		else
+			mergen_log "warning" "Watchdog" "Kilit alinamadi, guncelleme ertelendi"
+		fi
+	else
+		local remaining=$((interval - elapsed))
+		mergen_log "debug" "Watchdog" "Sonraki guncelleme: ${remaining}s"
+	fi
+}
+
+# ── Safe Mode Timer Check ─────────────────────────────────
+
+# Check if a safe mode confirmation has expired
+# If expired, auto-rollback to the snapshot
+watchdog_check_safe_mode() {
+	if ! mergen_safe_mode_pending; then
+		return 0
+	fi
+
+	if mergen_safe_mode_expired; then
+		mergen_log "warning" "Watchdog" "Guvenli mod suresi doldu! Otomatik geri alma baslatiliyor..."
+
+		if mergen_lock_acquire 10; then
+			if mergen_snapshot_exists; then
+				mergen_snapshot_restore
+				mergen_log "info" "Watchdog" "Otomatik geri alma tamamlandi."
+			else
+				mergen_log "error" "Watchdog" "Snapshot bulunamadi, geri alma yapilamadi."
+			fi
+
+			# Remove pending file
+			rm -f "$MERGEN_PENDING_FILE"
+			mergen_lock_release
+		else
+			mergen_log "warning" "Watchdog" "Kilit alinamadi, geri alma ertelendi."
+		fi
+	fi
+}
+
+# ── Failover Health Check ─────────────────────────────────
+
+# Check interface health for rules that have fallback configured
+# Activates failover if primary is down, restores if primary comes back up
+watchdog_check_failover() {
+	_failover_check_cb() {
+		local section="$1"
+		local name enabled via fallback
+		config_get name "$section" "name" ""
+		config_get enabled "$section" "enabled" "1"
+		config_get via "$section" "via" ""
+		config_get fallback "$section" "fallback" ""
+
+		# Skip disabled rules or rules without fallback
+		[ "$enabled" != "1" ] && return 0
+		[ -z "$fallback" ] && return 0
+		[ -z "$name" ] && return 0
+
+		if mergen_failover_active "$name"; then
+			# Currently in failover — check if original interface is back
+			local original_via
+			original_via="$(mergen_failover_original_via "$name")"
+			if [ -n "$original_via" ] && mergen_interface_health_check "$original_via"; then
+				mergen_log "info" "Watchdog" "Arayüz '${original_via}' tekrar erişilebilir, kural '${name}' geri yükleniyor..."
+				if mergen_lock_acquire 10; then
+					mergen_failover_restore "$name"
+					mergen_lock_release
+				fi
+			fi
+		else
+			# Not in failover — check if primary is down
+			if ! mergen_interface_health_check "$via"; then
+				mergen_log "warning" "Watchdog" "Arayüz '${via}' erişilemez, kural '${name}' failover tetikleniyor -> ${fallback}"
+				if mergen_lock_acquire 10; then
+					mergen_failover_activate "$name" "$fallback"
+					mergen_lock_release
+				fi
+			fi
+		fi
+	}
+
+	config_load "$MERGEN_CONF"
+	config_foreach _failover_check_cb "rule"
+}
+
+# ── Main Loop ─────────────────────────────────────────────
+# Guard: skip when sourced for testing (MERGEN_WATCHDOG_SOURCED=1)
+
+if [ "${MERGEN_WATCHDOG_SOURCED:-0}" != "1" ]; then
+	trap _watchdog_shutdown INT TERM
+
+	# Write PID
+	echo $$ > "$MERGEN_PID_FILE"
+
+	mergen_log "info" "Watchdog" "mergen-watchdog baslatildi (PID: $$)"
+
+	_watchdog_start_time="$(date +%s)"
+
+	# Initialize resolver (sets MERGEN_CACHE_DIR)
+	mergen_resolver_init
+
+	# Write initial status
+	watchdog_write_status
+
+	while [ "$_watchdog_running" -eq 1 ]; do
+		watchdog_check_updates
+		watchdog_check_safe_mode
+		watchdog_check_failover
+		watchdog_write_status
+
+		# Sleep in 1-second intervals for responsive signal handling
+		local slept=0
+		while [ "$slept" -lt "$WATCHDOG_CHECK_INTERVAL" ] && [ "$_watchdog_running" -eq 1 ]; do
+			sleep 1
+			slept=$((slept + 1))
+		done
+	done
+
+	# Cleanup
+	rm -f "$MERGEN_STATUS_FILE"
+	rm -f "$MERGEN_PID_FILE"
+	mergen_log "info" "Watchdog" "mergen-watchdog durduruldu"
+fi

@@ -1,0 +1,96 @@
+<%+header%>
+
+<link rel="stylesheet" href="<%=resource%>/mergen/mergen.css" />
+
+<h2><%:Mergen%> - <%:Rules%></h2>
+
+<p>
+<%:Rules define which traffic should be routed through which interface. Each rule can target ASN numbers or IP/CIDR blocks.%>
+</p>
+
+<%
+	local util = require "luci.util"
+
+	-- Get rule count summary
+	local status_raw = util.exec("/usr/bin/mergen status 2>/dev/null") or ""
+	local rule_total = status_raw:match("Toplam Kural:%s*(%d+)") or "0"
+	local rule_active = status_raw:match("Aktif:%s*(%d+)") or "0"
+%>
+
+<div class="mergen-cards" style="margin-bottom:1rem">
+	<div class="mergen-card">
+		<h4><%:Total Rules%></h4>
+		<div class="value"><%=rule_total%></div>
+	</div>
+	<div class="mergen-card">
+		<h4><%:Active Rules%></h4>
+		<div class="value"><%=rule_active%></div>
+	</div>
+</div>
+
+<div class="mergen-actions" style="margin-bottom:0.75rem">
+	<button class="cbi-button cbi-button-apply mergen-btn-apply"
+		onclick="MergenUI.applyRules(); return false;">
+		<%:Apply All%>
+	</button>
+	<button class="cbi-button cbi-button-neutral"
+		onclick="MergenUI.exportRules(); return false;">
+		<%:Export JSON%>
+	</button>
+</div>
+
+<!-- Bulk operations toolbar (hidden until checkboxes selected) -->
+<div id="mergen-bulk-toolbar" class="mergen-bulk-toolbar">
+	<span class="bulk-count">
+		<span id="mergen-bulk-count">0</span> <%:selected%>
+	</span>
+	<button class="cbi-button cbi-button-apply"
+		onclick="MergenUI.bulkAction('enable'); return false;">
+		<%:Enable%>
+	</button>
+	<button class="cbi-button cbi-button-neutral"
+		onclick="MergenUI.bulkAction('disable'); return false;">
+		<%:Disable%>
+	</button>
+	<button class="cbi-button cbi-button-remove"
+		onclick="MergenUI.bulkAction('delete'); return false;">
+		<%:Delete%>
+	</button>
+	<button class="cbi-button cbi-button-neutral"
+		onclick="MergenUI.exportRules(); return false;">
+		<%:Export Selected%>
+	</button>
+</div>
+
+<script src="<%=resource%>/mergen/mergen.js"></script>
+
+<script>
+/* Rules page enhancements */
+document.addEventListener('DOMContentLoaded', function() {
+	/* Add delete confirmation to remove buttons */
+	var removeBtns = document.querySelectorAll('.cbi-section-remove input[type="submit"]');
+	for (var i = 0; i < removeBtns.length; i++) {
+		removeBtns[i].addEventListener('click', function(e) {
+			if (!confirm('<%:Are you sure you want to delete this rule?%>')) {
+				e.preventDefault();
+				return false;
+			}
+		});
+	}
+
+	/* Type-dependent field visibility hint */
+	var typeSelects = document.querySelectorAll('select[id*=".type"]');
+	for (var j = 0; j < typeSelects.length; j++) {
+		typeSelects[j].addEventListener('change', function() {
+			var row = this.closest('tr');
+			if (row) {
+				row.style.transition = 'background 0.3s';
+				row.style.background = '#fffde7';
+				setTimeout(function() { row.style.background = ''; }, 500);
+			}
+		});
+	}
+});
+</script>
+
+<%+footer%>

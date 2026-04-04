@@ -10,7 +10,7 @@ Create an OpenWrt buildroot-compatible package structure and define the UCI conf
 
 ### T001 - OpenWrt Package Structure and Makefile
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 2 days
 
@@ -42,7 +42,7 @@ Create the OpenWrt buildroot Makefile structure and package directory hierarchy.
 
 ### T002 - UCI Configuration Schema
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 1.5 days
 
@@ -70,7 +70,7 @@ Implement the UCI config schema defined in PRD Section 6.3. Global settings, pro
 
 ### T003 - UCI Read/Write Library
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 2 days
 
@@ -101,7 +101,7 @@ Shell library wrapping UCI read/write functions. All Mergen components access UC
 
 ### T048 - Config Migration Script
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 1 day
 

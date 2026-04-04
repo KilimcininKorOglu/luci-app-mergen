@@ -10,7 +10,7 @@ Mergen CLI main entry point, core commands, watchdog daemon infrastructure, and 
 
 ### T010 - Core CLI Commands
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 3 days
 
@@ -46,7 +46,7 @@ Mergen CLI main script and core commands: add, remove, list, apply, status.
 
 ### T011 - Utility CLI Commands
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 1 day
 
@@ -78,7 +78,7 @@ Utility CLI commands: version, help, validate.
 
 ### T012 - Watchdog Daemon
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 2 days
 
@@ -114,7 +114,7 @@ Lightweight watchdog daemon script. Managed by procd, handles hotplug events and
 
 ### T013 - Unit Test Framework & Basic Tests
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 1.5 days
 

@@ -10,7 +10,7 @@ Secondary objectives: DNS-based routing, country-based routing, traffic statisti
 
 ### T042 - DNS-Based Routing
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 3 days
 
@@ -43,7 +43,7 @@ Domain-based routing rules. Dynamic IP resolution from DNS responses via dnsmasq
 
 ### T043 - Country-Based Routing
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 2 days
 
@@ -74,7 +74,7 @@ Bulk ASN addition by country code. Country-ASN mapping via MaxMind GeoLite2 Coun
 
 ### T044 - Traffic Statistics & Failover
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 3 days
 
@@ -112,7 +112,7 @@ Traffic statistics via nftables counters and interface failover/health check sys
 
 ### T045 - mwan3 Integration
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P4 (Low)
 **Effort**: 2 days
 

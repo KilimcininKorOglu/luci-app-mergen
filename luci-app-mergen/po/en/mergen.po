@@ -1,0 +1,500 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+msgid "Mergen"
+msgstr "Mergen"
+
+msgid "Overview"
+msgstr "Overview"
+
+msgid "Rules"
+msgstr "Rules"
+
+msgid "Providers"
+msgstr "Providers"
+
+msgid "Advanced"
+msgstr "Advanced"
+
+msgid "ASN/IP based policy routing for OpenWrt"
+msgstr "ASN/IP based policy routing for OpenWrt"
+
+msgid "Daemon Status"
+msgstr "Daemon Status"
+
+msgid "Total Rules"
+msgstr "Total Rules"
+
+msgid "Total Prefixes"
+msgstr "Total Prefixes"
+
+msgid "Last Sync"
+msgstr "Last Sync"
+
+msgid "Active Rules"
+msgstr "Active Rules"
+
+msgid "Apply All"
+msgstr "Apply All"
+
+msgid "Update Prefixes"
+msgstr "Update Prefixes"
+
+msgid "Recent Operations"
+msgstr "Recent Operations"
+
+msgid "Rule Name"
+msgstr "Rule Name"
+
+msgid "Rule Type"
+msgstr "Rule Type"
+
+msgid "Target"
+msgstr "Target"
+
+msgid "Interface"
+msgstr "Interface"
+
+msgid "Priority"
+msgstr "Priority"
+
+msgid "Enabled"
+msgstr "Enabled"
+
+msgid "Add Rule"
+msgstr "Add Rule"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "Running"
+msgstr "Running"
+
+msgid "Stopped"
+msgstr "Stopped"
+
+msgid "Provider Name"
+msgstr "Provider Name"
+
+msgid "API URL"
+msgstr "API URL"
+
+msgid "Timeout"
+msgstr "Timeout"
+
+msgid "Rate Limit"
+msgstr "Rate Limit"
+
+msgid "Routing Table"
+msgstr "Routing Table"
+
+msgid "Packet Engine"
+msgstr "Packet Engine"
+
+msgid "nftables"
+msgstr "nftables"
+
+msgid "ipset"
+msgstr "ipset"
+
+msgid "Enable IPv6"
+msgstr "Enable IPv6"
+
+msgid "Prefix Limit"
+msgstr "Prefix Limit"
+
+msgid "Update Interval"
+msgstr "Update Interval"
+
+msgid "Fallback Strategy"
+msgstr "Fallback Strategy"
+
+msgid "Sequential"
+msgstr "Sequential"
+
+msgid "Parallel"
+msgstr "Parallel"
+
+msgid "Cache Only"
+msgstr "Cache Only"
+
+msgid "Restart Daemon"
+msgstr "Restart Daemon"
+
+msgid "Next Sync"
+msgstr "Next Sync"
+
+msgid "Total Prefixes"
+msgstr "Total Prefixes"
+
+msgid "No rules configured yet."
+msgstr "No rules configured yet."
+
+msgid "No recent operations"
+msgstr "No recent operations"
+
+msgid "View all logs"
+msgstr "View all logs"
+
+msgid "active"
+msgstr "active"
+
+msgid "disabled"
+msgstr "disabled"
+
+msgid "details"
+msgstr "details"
+
+msgid "Log Level"
+msgstr "Log Level"
+
+msgid "Tags"
+msgstr "Tags"
+
+msgid "Are you sure you want to delete this rule?"
+msgstr "Are you sure you want to delete this rule?"
+
+msgid "Rules define which traffic should be routed through which interface. Each rule can target ASN numbers or IP/CIDR blocks."
+msgstr "Rules define which traffic should be routed through which interface. Each rule can target ASN numbers or IP/CIDR blocks."
+
+msgid "Manage ASN/IP based policy routing rules. Rules define which traffic is routed through which interface."
+msgstr "Manage ASN/IP based policy routing rules. Rules define which traffic is routed through which interface."
+
+msgid "Whois Server"
+msgstr "Whois Server"
+
+msgid "DB Path"
+msgstr "DB Path"
+
+msgid "General Provider Settings"
+msgstr "General Provider Settings"
+
+msgid "Cache TTL (seconds)"
+msgstr "Cache TTL (seconds)"
+
+msgid "Routing"
+msgstr "Routing"
+
+msgid "ip rule Priority Start"
+msgstr "ip rule Priority Start"
+
+msgid "Packet Matching Engine"
+msgstr "Packet Matching Engine"
+
+msgid "recommended"
+msgstr "recommended"
+
+msgid "legacy"
+msgstr "legacy"
+
+msgid "IPv6 Table Mode"
+msgstr "IPv6 Table Mode"
+
+msgid "Shared table with IPv4"
+msgstr "Shared table with IPv4"
+
+msgid "Separate IPv6 table"
+msgstr "Separate IPv6 table"
+
+msgid "Performance"
+msgstr "Performance"
+
+msgid "Max Prefix Limit (per rule)"
+msgstr "Max Prefix Limit (per rule)"
+
+msgid "Total Prefix Limit (all rules)"
+msgstr "Total Prefix Limit (all rules)"
+
+msgid "API Timeout (seconds)"
+msgstr "API Timeout (seconds)"
+
+msgid "Parallel Query Limit"
+msgstr "Parallel Query Limit"
+
+msgid "Security"
+msgstr "Security"
+
+msgid "Rollback Watchdog Timeout (seconds)"
+msgstr "Rollback Watchdog Timeout (seconds)"
+
+msgid "Safe Mode Ping Target"
+msgstr "Safe Mode Ping Target"
+
+msgid "Logging"
+msgstr "Logging"
+
+msgid "Maintenance"
+msgstr "Maintenance"
+
+msgid "Flush All Routes"
+msgstr "Flush All Routes"
+
+msgid "Backup Config"
+msgstr "Backup Config"
+
+msgid "Validate Config"
+msgstr "Validate Config"
+
+msgid "This will remove all Mergen routes and sets. Continue?"
+msgstr "This will remove all Mergen routes and sets. Continue?"
+
+msgid "Export JSON"
+msgstr "Export JSON"
+
+msgid "Export Selected"
+msgstr "Export Selected"
+
+msgid "selected"
+msgstr "selected"
+
+msgid "Disable"
+msgstr "Disable"
+
+msgid "Enable"
+msgstr "Enable"
+
+msgid "Clone"
+msgstr "Clone"
+
+msgid "ASN Browser"
+msgstr "ASN Browser"
+
+msgid "Search for ASN information, view announced prefixes and create routing rules."
+msgstr "Search for ASN information, view announced prefixes and create routing rules."
+
+msgid "ASN number, org name or IP address"
+msgstr "ASN number, org name or IP address"
+
+msgid "Search"
+msgstr "Search"
+
+msgid "Compare"
+msgstr "Compare"
+
+msgid "Resolving..."
+msgstr "Resolving..."
+
+msgid "IPv4 Prefixes"
+msgstr "IPv4 Prefixes"
+
+msgid "IPv6 Prefixes"
+msgstr "IPv6 Prefixes"
+
+msgid "Add Rule for This ASN"
+msgstr "Add Rule for This ASN"
+
+msgid "All"
+msgstr "All"
+
+msgid "Prefix"
+msgstr "Prefix"
+
+msgid "Type"
+msgstr "Type"
+
+msgid "No prefixes found"
+msgstr "No prefixes found"
+
+msgid "Prev"
+msgstr "Prev"
+
+msgid "Next"
+msgstr "Next"
+
+msgid "ASN Comparison"
+msgstr "ASN Comparison"
+
+msgid "Clear Comparison"
+msgstr "Clear Comparison"
+
+msgid "Common Prefixes"
+msgstr "Common Prefixes"
+
+msgid "No common prefixes found"
+msgstr "No common prefixes found"
+
+msgid "ASN not found or resolve failed"
+msgstr "ASN not found or resolve failed"
+
+msgid "Error"
+msgstr "Error"
+
+msgid "Rule name is required"
+msgstr "Rule name is required"
+
+msgid "Interface is required"
+msgstr "Interface is required"
+
+msgid "Failed to create rule"
+msgstr "Failed to create rule"
+
+msgid "Search for an ASN first"
+msgstr "Search for an ASN first"
+
+msgid "is already in comparison"
+msgstr "is already in comparison"
+
+msgid "Maximum 4 ASNs can be compared"
+msgstr "Maximum 4 ASNs can be compared"
+
+msgid "Interfaces"
+msgstr "Interfaces"
+
+msgid "Network interfaces used by Mergen routing rules with status and health checks."
+msgstr "Network interfaces used by Mergen routing rules with status and health checks."
+
+msgid "Name"
+msgstr "Name"
+
+msgid "IP Address"
+msgstr "IP Address"
+
+msgid "Mergen Rules"
+msgstr "Mergen Rules"
+
+msgid "Actions"
+msgstr "Actions"
+
+msgid "Loading..."
+msgstr "Loading..."
+
+msgid "No interfaces found"
+msgstr "No interfaces found"
+
+msgid "Connectivity Test"
+msgstr "Connectivity Test"
+
+msgid "Ping"
+msgstr "Ping"
+
+msgid "Transmitted"
+msgstr "Transmitted"
+
+msgid "Received"
+msgstr "Received"
+
+msgid "Loss"
+msgstr "Loss"
+
+msgid "Avg Latency"
+msgstr "Avg Latency"
+
+msgid "Ping failed"
+msgstr "Ping failed"
+
+msgid "Logs"
+msgstr "Logs"
+
+msgid "View and filter Mergen system logs with live updates."
+msgstr "View and filter Mergen system logs with live updates."
+
+msgid "All Levels"
+msgstr "All Levels"
+
+msgid "Filter text..."
+msgstr "Filter text..."
+
+msgid "lines"
+msgstr "lines"
+
+msgid "Auto-refresh"
+msgstr "Auto-refresh"
+
+msgid "Refresh"
+msgstr "Refresh"
+
+msgid "Download Log"
+msgstr "Download Log"
+
+msgid "Diagnostics Bundle"
+msgstr "Diagnostics Bundle"
+
+msgid "entries"
+msgstr "entries"
+
+msgid "updated"
+msgstr "updated"
+
+msgid "No log entries found"
+msgstr "No log entries found"
+
+msgid "Download failed"
+msgstr "Download failed"
+
+msgid "Diagnostics generation failed"
+msgstr "Diagnostics generation failed"
+
+msgid "Factory Reset"
+msgstr "Factory Reset"
+
+msgid "This will delete ALL rules, providers and reset all settings to defaults. This cannot be undone. Continue?"
+msgstr "This will delete ALL rules, providers and reset all settings to defaults. This cannot be undone. Continue?"
+
+msgid "Are you absolutely sure? All configuration will be lost."
+msgstr "Are you absolutely sure? All configuration will be lost."
+
+msgid "Restore Configuration"
+msgstr "Restore Configuration"
+
+msgid "Upload a previously backed up Mergen UCI configuration file to restore settings."
+msgstr "Upload a previously backed up Mergen UCI configuration file to restore settings."
+
+msgid "Restore Config"
+msgstr "Restore Config"
+
+msgid "Invalid configuration file format"
+msgstr "Invalid configuration file format"
+
+msgid "This will replace the current configuration. Continue?"
+msgstr "This will replace the current configuration. Continue?"
+
+msgid "Version Information"
+msgstr "Version Information"
+
+msgid "Config Version"
+msgstr "Config Version"
+
+msgid "Provider Maintenance"
+msgstr "Provider Maintenance"
+
+msgid "Test All Providers"
+msgstr "Test All Providers"
+
+msgid "Clear All Cache"
+msgstr "Clear All Cache"
+
+msgid "Test Results"
+msgstr "Test Results"
+
+msgid "Testing..."
+msgstr "Testing..."
+
+msgid "This will clear all provider caches. Prefixes will be re-fetched on next update. Continue?"
+msgstr "This will clear all provider caches. Prefixes will be re-fetched on next update. Continue?"
+
+msgid "Test"
+msgstr "Test"
+
+msgid "Provider testing, cache management and health monitoring."
+msgstr "Provider testing, cache management and health monitoring."
+
+msgid "Configure ASN resolution data providers, fallback strategy and cache settings."
+msgstr "Configure ASN resolution data providers, fallback strategy and cache settings."
+
+msgid "Traffic"
+msgstr "Traffic"
+
+msgid "Fallback Interface"
+msgstr "Fallback Interface"
+
+msgid "-- None --"
+msgstr "-- None --"
+
+msgid "Operating Mode"
+msgstr "Operating Mode"
+
+msgid "Standalone"
+msgstr "Standalone"
+
+msgid "mwan3 Integration"
+msgstr "mwan3 Integration"

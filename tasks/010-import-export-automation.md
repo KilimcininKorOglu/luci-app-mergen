@@ -10,7 +10,7 @@ JSON import/export, cron-based automatic updates, hotplug integration, and the r
 
 ### T030 - JSON Import/Export
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 2 days
 
@@ -47,7 +47,7 @@ Loading rules from a JSON file and exporting existing rules as JSON.
 
 ### T031 - Cron Auto-Update & mergen update
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 1.5 days
 
@@ -82,7 +82,7 @@ Periodic prefix update and manual update command.
 
 ### T032 - Hotplug Integration
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 1.5 days
 
@@ -119,7 +119,7 @@ Dynamic update of Mergen rules on interface up/down events.
 
 ### T033 - Resolve Command & Phase 3 Tests
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 1 day
 

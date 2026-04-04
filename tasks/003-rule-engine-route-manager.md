@@ -10,7 +10,7 @@ Rule management (CRUD) and Linux policy routing (ip rule + ip route) implementat
 
 ### T007 - Rule CRUD Operations
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 2 days
 
@@ -44,7 +44,7 @@ UCI-based rule add, delete, list, update, and enable/disable operations.
 
 ### T008 - Policy Routing via ip rule + ip route
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 2.5 days
 
@@ -79,7 +79,7 @@ Creating prefix-based routing tables using the Linux kernel policy routing mecha
 
 ### T009 - Input Validation Library
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P1 (Critical)
 **Effort**: 1 day
 

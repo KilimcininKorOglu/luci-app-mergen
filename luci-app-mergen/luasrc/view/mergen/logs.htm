@@ -1,0 +1,216 @@
+<%+header%>
+
+<link rel="stylesheet" href="<%=resource%>/mergen/mergen.css" />
+
+<h2><%:Mergen%> - <%:Logs%></h2>
+
+<p><%:View and filter Mergen system logs with live updates.%></p>
+
+<!-- Filter Bar -->
+<div class="mergen-log-filters">
+	<select id="log-level" class="cbi-input-select"
+		onchange="MergenLogs.refresh()">
+		<option value=""><%:All Levels%></option>
+		<option value="error">Error</option>
+		<option value="warning">Warning</option>
+		<option value="info">Info</option>
+		<option value="debug">Debug</option>
+	</select>
+
+	<input type="text" id="log-filter" class="cbi-input-text"
+		placeholder="<%:Filter text...%>"
+		onkeyup="MergenLogs.debounceRefresh()">
+
+	<select id="log-lines" class="cbi-input-select"
+		onchange="MergenLogs.refresh()">
+		<option value="25">25 <%:lines%></option>
+		<option value="50" selected>50 <%:lines%></option>
+		<option value="100">100 <%:lines%></option>
+		<option value="200">200 <%:lines%></option>
+	</select>
+
+	<label class="mergen-auto-refresh-label">
+		<input type="checkbox" id="log-auto-refresh" checked
+			onchange="MergenLogs.toggleAutoRefresh()">
+		<%:Auto-refresh%>
+	</label>
+</div>
+
+<!-- Actions -->
+<div class="mergen-actions" style="margin-bottom:0.75rem">
+	<button class="cbi-button cbi-button-neutral"
+		onclick="MergenLogs.refresh(); return false;">
+		<%:Refresh%>
+	</button>
+	<button class="cbi-button cbi-button-neutral"
+		onclick="MergenLogs.downloadLog(); return false;">
+		<%:Download Log%>
+	</button>
+	<button class="cbi-button cbi-button-neutral"
+		onclick="MergenLogs.generateDiag(); return false;">
+		<%:Diagnostics Bundle%>
+	</button>
+</div>
+
+<!-- Log Count -->
+<div class="mergen-log-info">
+	<span id="log-count">0</span> <%:entries%>
+	<span id="log-last-update" class="mergen-log-timestamp"></span>
+</div>
+
+<!-- Log Output -->
+<div id="log-container" class="mergen-log mergen-log-live">
+	<div id="log-entries"><%:Loading...%></div>
+</div>
+
+<script src="<%=resource%>/mergen/mergen.js"></script>
+
+<script>
+var MergenLogs = {
+
+	refreshTimer: null,
+	filterTimer: null,
+	autoRefreshInterval: 5000,
+
+	init: function() {
+		this.refresh();
+		this.toggleAutoRefresh();
+	},
+
+	refresh: function() {
+		var level = document.getElementById('log-level').value;
+		var filter = document.getElementById('log-filter').value.trim();
+		var lines = document.getElementById('log-lines').value;
+
+		var params = { lines: lines };
+		if (level) params.level = level;
+		if (filter) params.filter = filter;
+
+		MergenUI.rpcCall('logs', params).then(function(data) {
+			if (data.success) {
+				MergenLogs.renderEntries(data.entries);
+				document.getElementById('log-count').textContent = data.total;
+				document.getElementById('log-last-update').textContent =
+					' <%:updated%> ' + new Date().toLocaleTimeString();
+			}
+		}).catch(function(err) {
+			document.getElementById('log-entries').innerHTML =
+				'<div class="log-entry"><%:Error%>: ' + err.message + '</div>';
+		});
+	},
+
+	renderEntries: function(entries) {
+		var container = document.getElementById('log-entries');
+		container.innerHTML = '';
+
+		if (entries.length === 0) {
+			container.innerHTML = '<div class="log-entry"><%:No log entries found%></div>';
+			return;
+		}
+
+		for (var i = 0; i < entries.length; i++) {
+			var entry = entries[i];
+			var div = document.createElement('div');
+			div.className = 'log-entry log-level-' + entry.level;
+
+			var levelBadge = '';
+			var badgeClass = 'mergen-badge-off';
+			if (entry.level === 'error') badgeClass = 'mergen-badge-err';
+			else if (entry.level === 'warning') badgeClass = 'mergen-badge-warn';
+			else if (entry.level === 'info') badgeClass = 'mergen-badge-ok';
+
+			div.innerHTML = '<span class="log-time">' + (entry.time || '') + '</span>'
+				+ '<span class="mergen-badge ' + badgeClass + '">'
+				+ entry.level + '</span> '
+				+ '<span class="log-msg">' + MergenLogs.escapeHtml(entry.message) + '</span>';
+
+			container.appendChild(div);
+		}
+
+		/* Auto-scroll to bottom */
+		var logContainer = document.getElementById('log-container');
+		logContainer.scrollTop = logContainer.scrollHeight;
+	},
+
+	escapeHtml: function(text) {
+		var div = document.createElement('div');
+		div.appendChild(document.createTextNode(text));
+		return div.innerHTML;
+	},
+
+	debounceRefresh: function() {
+		clearTimeout(this.filterTimer);
+		this.filterTimer = setTimeout(function() {
+			MergenLogs.refresh();
+		}, 300);
+	},
+
+	toggleAutoRefresh: function() {
+		var checkbox = document.getElementById('log-auto-refresh');
+		if (this.refreshTimer) {
+			clearInterval(this.refreshTimer);
+			this.refreshTimer = null;
+		}
+		if (checkbox.checked) {
+			this.refreshTimer = setInterval(function() {
+				MergenLogs.refresh();
+			}, this.autoRefreshInterval);
+		}
+	},
+
+	downloadLog: function() {
+		/* Fetch max lines and download */
+		MergenUI.rpcCall('logs', { lines: '500' }).then(function(data) {
+			if (!data.success || !data.entries) {
+				alert('<%:Download failed%>');
+				return;
+			}
+
+			var content = '';
+			for (var i = 0; i < data.entries.length; i++) {
+				var e = data.entries[i];
+				content += e.time + ' [' + e.level + '] ' + e.message + '\n';
+			}
+
+			var blob = new Blob([content], { type: 'text/plain' });
+			var url = URL.createObjectURL(blob);
+			var a = document.createElement('a');
+			a.href = url;
+			a.download = 'mergen-logs-' + new Date().toISOString().slice(0, 10) + '.log';
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		}).catch(function(err) {
+			alert('<%:Download failed%>: ' + err.message);
+		});
+	},
+
+	generateDiag: function() {
+		MergenUI.rpcCall('diag_bundle').then(function(data) {
+			if (!data.success || !data.bundle) {
+				alert('<%:Diagnostics generation failed%>');
+				return;
+			}
+
+			var blob = new Blob([data.bundle], { type: 'text/plain' });
+			var url = URL.createObjectURL(blob);
+			var a = document.createElement('a');
+			a.href = url;
+			a.download = 'mergen-diag-' + new Date().toISOString().slice(0, 10) + '.txt';
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		}).catch(function(err) {
+			alert('<%:Diagnostics generation failed%>: ' + err.message);
+		});
+	}
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+	MergenLogs.init();
+});
+</script>
+
+<%+footer%>

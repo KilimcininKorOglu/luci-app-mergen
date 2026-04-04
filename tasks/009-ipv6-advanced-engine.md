@@ -10,7 +10,7 @@ IPv6 dual-stack routing support, conflict detection, CIDR aggregation, and rule 
 
 ### T027 - IPv6 Dual-Stack Routing
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P2 (High)
 **Effort**: 2.5 days
 
@@ -44,7 +44,7 @@ IPv6 prefix resolution and dual-stack policy routing with `ip -6 rule` + `ip -6 
 
 ### T028 - Conflict Detection & CIDR Aggregation
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 2 days
 
@@ -81,7 +81,7 @@ Detecting conflicts where the same prefix is routed to different targets, and ag
 
 ### T029 - Rule Grouping (Label/Tag)
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P4 (Low)
 **Effort**: 1 day
 
