@@ -701,7 +701,7 @@ mergen_aggregate_prefixes() {
 	# Iterate until no more merges are possible
 	while [ "$changed" -eq 1 ]; do
 		changed=0
-		> "$outfile"
+		: > "$outfile"
 
 		local prev_prefix="" prev_start=0 prev_end=0 prev_len=0
 		local skip_next=0

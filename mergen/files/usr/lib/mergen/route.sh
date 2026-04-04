@@ -596,8 +596,7 @@ mergen_snapshot_create() {
 	mergen_log "info" "Snapshot" "Routing durumu kaydediliyor..."
 
 	# Save ip rules
-	ip rule save > "${MERGEN_SNAPSHOT_DIR}/rules.save" 2>/dev/null
-	if [ $? -ne 0 ]; then
+	if ! ip rule save > "${MERGEN_SNAPSHOT_DIR}/rules.save" 2>/dev/null; then
 		# Fallback: save text format
 		ip rule show > "${MERGEN_SNAPSHOT_DIR}/rules.save" 2>/dev/null
 	fi
@@ -610,7 +609,7 @@ mergen_snapshot_create() {
 
 	# Save routes for each table that has entries
 	local tbl routes_saved=0
-	> "${MERGEN_SNAPSHOT_DIR}/routes.save"
+	: > "${MERGEN_SNAPSHOT_DIR}/routes.save"
 	tbl="$table_start"
 	while [ "$tbl" -le "$table_end" ]; do
 		local routes
