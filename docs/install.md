@@ -8,12 +8,12 @@ ranges.
 
 ## Requirements
 
-| Requirement       | Minimum                          |
-|-------------------|----------------------------------|
-| OpenWrt version   | 23.05 or later                   |
-| Firewall backend  | nftables (default) or iptables with ipset |
-| Disk space        | ~500 KB                          |
-| RAM               | 32 MB or more                    |
+| Requirement      | Minimum                                   |
+|------------------|-------------------------------------------|
+| OpenWrt version  | 23.05 or later                            |
+| Firewall backend | nftables (default) or iptables with ipset |
+| Disk space       | ~500 KB                                   |
+| RAM              | 32 MB or more                             |
 
 Mergen supports both the nftables backend (default on OpenWrt 22.03+) and the
 legacy iptables/ipset backend. The appropriate backend is detected automatically
@@ -45,7 +45,7 @@ you can compile Mergen within the OpenWrt build system.
 
    ```sh
    cd /path/to/openwrt
-   git clone https://github.com/KilimcininKorOglu/mergen.git package/mergen
+   git clone https://github.com/KilimcininKorOglu/luci-app-mergen.git package/mergen
    ```
 
 2. Update the feed index and select the package:
@@ -93,11 +93,11 @@ backend in use. A healthy installation reports `status: running` with no errors.
 Mergen pulls in the following dependencies automatically when installed via
 opkg:
 
-| Dependency | Purpose                                                    |
-|------------|------------------------------------------------------------|
-| dnsmasq    | Required for DNS-based routing (ipset/nftset integration)  |
-| nftables   | Default firewall backend for set-based routing rules       |
-| ipset      | Alternative backend when using iptables (legacy systems)   |
+| Dependency | Purpose                                                   |
+|------------|-----------------------------------------------------------|
+| dnsmasq    | Required for DNS-based routing (ipset/nftset integration) |
+| nftables   | Default firewall backend for set-based routing rules      |
+| ipset      | Alternative backend when using iptables (legacy systems)  |
 
 If your OpenWrt installation uses the default nftables backend, no additional
 configuration is needed. For iptables-based setups, ensure that `kmod-ipt-ipset`
