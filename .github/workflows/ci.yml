@@ -39,7 +39,7 @@ jobs:
       - name: Run unit tests
         run: |
           cd mergen/tests
-          sh run_all.sh --verbose 2>&1 || true
+          sh run_all.sh --verbose 2>&1
 
       - name: Run performance tests
         run: |

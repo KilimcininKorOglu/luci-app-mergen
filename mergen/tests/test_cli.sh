@@ -176,6 +176,10 @@ mergen_uci_add() {
 mergen_lock_acquire() { return 0; }
 mergen_lock_release() { return 0; }
 
+# Override safe mode ping (real ping fails in test/CI environments)
+mergen_safe_mode_ping() { return 0; }
+mergen_safe_mode_start() { return 0; }
+
 # ── Mock Provider ───────────────────────────────────────
 
 _create_mock_provider() {
@@ -232,6 +236,7 @@ tearDown() {
 	if [ -n "$_TEST_TMPDIR" ] && [ -d "$_TEST_TMPDIR" ]; then
 		rm -rf "$_TEST_TMPDIR"
 	fi
+	return 0
 }
 
 # ── cmd_add Tests ──────────────────────────────────────
