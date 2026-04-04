@@ -6,7 +6,7 @@ LUCI_DESCRIPTION:=Web interface for managing Mergen ASN/IP based policy routing 
  provider configuration and system status monitoring.
 LUCI_PKGARCH:=all
 
-PKG_LICENSE:=GPL-2.0-only
+PKG_LICENSE:=MIT
 
 include ../../luci.mk
 

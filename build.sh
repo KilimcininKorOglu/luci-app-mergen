@@ -1,7 +1,7 @@
 #!/bin/bash
 # Copyright 2026 KilimcininKorOglu
 # https://github.com/KilimcininKorOglu/luci-app-mergen
-# Licensed under the GPL-2.0-only License
+# Licensed under the MIT License
 
 # Mergen - IPK Package Builder
 # Builds standalone IPK packages without OpenWrt SDK

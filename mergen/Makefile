@@ -5,7 +5,7 @@ PKG_VERSION:=0.1.0
 PKG_RELEASE:=1
 
 PKG_MAINTAINER:=KilimcininKorOglu
-PKG_LICENSE:=GPL-2.0-only
+PKG_LICENSE:=MIT
 
 include $(INCLUDE_DIR)/package.mk
 
