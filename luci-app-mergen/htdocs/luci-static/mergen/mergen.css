@@ -485,3 +485,11 @@
 		width: 100%;
 	}
 }
+
+/* Traffic statistics cells */
+.mergen-traffic-cell {
+	font-family: monospace;
+	font-size: 0.85rem;
+	color: #555;
+	white-space: nowrap;
+}

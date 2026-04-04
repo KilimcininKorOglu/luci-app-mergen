@@ -480,3 +480,12 @@ msgstr "Sağlayıcı testi, önbellek yönetimi ve sağlık izleme."
 
 msgid "Configure ASN resolution data providers, fallback strategy and cache settings."
 msgstr "ASN çözümleme veri sağlayıcılarını, yedek stratejiyi ve önbellek ayarlarını yapılandırın."
+
+msgid "Traffic"
+msgstr "Trafik"
+
+msgid "Fallback Interface"
+msgstr "Yedek Arayüz"
+
+msgid "-- None --"
+msgstr "-- Yok --"

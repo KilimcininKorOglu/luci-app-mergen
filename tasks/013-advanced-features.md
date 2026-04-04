@@ -74,7 +74,7 @@ Bulk ASN addition by country code. Country-ASN mapping via MaxMind GeoLite2 Coun
 
 ### T044 - Traffic Statistics & Failover
 
-**Status**: NOT_STARTED
+**Status**: COMPLETED
 **Priority**: P3 (Medium)
 **Effort**: 3 days
 

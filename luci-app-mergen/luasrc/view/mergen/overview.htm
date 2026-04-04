@@ -140,6 +140,7 @@
 			<th><%:Target%></th>
 			<th><%:Interface%></th>
 			<th><%:Priority%></th>
+			<th><%:Traffic%></th>
 			<th><%:Status%></th>
 		</tr>
 	</thead>
@@ -154,6 +155,18 @@
 			else
 				target = tostring(rule.asn or "")
 			end
+		elseif rtype == "domain" then
+			if type(rule.domain) == "table" then
+				target = table.concat(rule.domain, ", ")
+			else
+				target = tostring(rule.domain or "")
+			end
+		elseif rtype == "country" then
+			if type(rule.country) == "table" then
+				target = table.concat(rule.country, ", ")
+			else
+				target = tostring(rule.country or "")
+			end
 		else
 			if type(rule.ip) == "table" then
 				target = table.concat(rule.ip, ", ")
@@ -166,6 +179,7 @@
 			target = target:sub(1, 37) .. "..."
 		end
 		local via = rule.via or ""
+		local fallback = rule.fallback or ""
 		local priority = rule.priority or 100
 		local enabled = rule.enabled
 		if enabled == nil then enabled = true end
@@ -177,6 +191,14 @@
 			rbadge = "mergen-badge-off"
 			rtext = "disabled"
 		end
+
+		-- Check failover state
+		local failover_file = io.open("/tmp/mergen/failover/" .. name, "r")
+		if failover_file then
+			failover_file:close()
+			rbadge = "mergen-badge-err"
+			rtext = "failover"
+		end
 	%>
 		<tr>
 			<td>
@@ -184,8 +206,9 @@
 			</td>
 			<td><%=rtype:upper()%></td>
 			<td title="<%=target%>"><%=target%></td>
-			<td><%=via%></td>
+			<td><%=via%><% if fallback ~= "" then %> <span style="font-size:0.75rem;color:#999">(fb: <%=fallback%>)</span><% end %></td>
 			<td><%=priority%></td>
+			<td class="mergen-traffic-cell" data-rule="<%=name%>">-</td>
 			<td><span class="mergen-badge <%=rbadge%>"><%=rtext%></span></td>
 		</tr>
 	<% end %>
@@ -227,5 +250,36 @@
 <p><a href="<%=url('admin/services/mergen/log')%>"><%:View all logs%> &rarr;</a></p>
 
 <script src="<%=resource%>/mergen/mergen.js"></script>
+<script>
+(function() {
+	function formatBytes(bytes) {
+		if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(1) + ' GB';
+		if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+		if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+		return bytes + ' B';
+	}
+
+	function loadTrafficStats() {
+		MergenUI.rpcCall('traffic_stats', {}, function(data) {
+			if (!data || !data.rules) return;
+			data.rules.forEach(function(r) {
+				var cells = document.querySelectorAll('.mergen-traffic-cell[data-rule="' + r.name + '"]');
+				cells.forEach(function(cell) {
+					if (r.packets > 0 || r.bytes > 0) {
+						cell.textContent = r.packets + ' pkt / ' + formatBytes(r.bytes);
+					} else {
+						cell.textContent = '-';
+					}
+				});
+			});
+		});
+	}
+
+	document.addEventListener('DOMContentLoaded', function() {
+		loadTrafficStats();
+		setInterval(loadTrafficStats, 15000);
+	});
+})();
+</script>
 
 <%+footer%>

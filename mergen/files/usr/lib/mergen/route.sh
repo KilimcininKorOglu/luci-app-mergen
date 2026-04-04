@@ -1016,12 +1016,12 @@ mergen_nft_rule_add() {
 	fi
 
 	if ! nft add rule inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" \
-		ip daddr "@${set_name}" meta mark set "$fwmark" 2>/dev/null; then
+		ip daddr "@${set_name}" counter meta mark set "$fwmark" 2>/dev/null; then
 		mergen_log "error" "NFT" "[!] Hata: fwmark kuralı eklenemedi: ${set_name} -> ${fwmark}"
 		return 1
 	fi
 
-	mergen_log "debug" "NFT" "fwmark kuralı eklendi: @${set_name} -> mark ${fwmark}"
+	mergen_log "debug" "NFT" "fwmark kuralı eklendi (counter): @${set_name} -> mark ${fwmark}"
 	return 0
 }
 
@@ -1062,6 +1062,125 @@ mergen_nft_set_count() {
 	count="$(echo "$output" | grep -c '[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+')"
 	echo "${count:-0}"
 	return 0
+}
+
+# Get nftables counter statistics for a rule (packets and bytes)
+# Usage: mergen_nft_counter_get <rule_name>
+# Sets MERGEN_NFT_PACKETS and MERGEN_NFT_BYTES on success
+MERGEN_NFT_PACKETS=0
+MERGEN_NFT_BYTES=0
+
+mergen_nft_counter_get() {
+	local rule_name="$1"
+	local set_name="mergen_${rule_name}"
+	MERGEN_NFT_PACKETS=0
+	MERGEN_NFT_BYTES=0
+
+	if ! mergen_nft_available; then
+		return 1
+	fi
+
+	# List chain rules and find the counter for this set
+	local chain_output
+	chain_output="$(nft list chain inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" 2>/dev/null)"
+	[ -z "$chain_output" ] && return 1
+
+	# Extract line with @set_name, parse counter values
+	# nft output format: ... @mergen_rule counter packets N bytes N meta mark set ...
+	local counter_line
+	counter_line="$(echo "$chain_output" | grep "@${set_name} " | head -1)"
+	[ -z "$counter_line" ] && return 1
+
+	MERGEN_NFT_PACKETS="$(echo "$counter_line" | sed -n 's/.*counter packets \([0-9]*\).*/\1/p')"
+	MERGEN_NFT_BYTES="$(echo "$counter_line" | sed -n 's/.*bytes \([0-9]*\).*/\1/p')"
+	[ -z "$MERGEN_NFT_PACKETS" ] && MERGEN_NFT_PACKETS=0
+	[ -z "$MERGEN_NFT_BYTES" ] && MERGEN_NFT_BYTES=0
+
+	return 0
+}
+
+# Get traffic statistics for all rules
+# Prints: rule_name packets bytes (tab separated per line)
+# Returns 0 on success, 1 if nftables not available
+mergen_traffic_stats() {
+	mergen_engine_detect
+	if [ "$MERGEN_ENGINE_ACTIVE" != "nftables" ]; then
+		echo "[!] Trafik istatistikleri yalnızca nftables motoru ile kullanılabilir."
+		return 1
+	fi
+
+	local chain_output
+	chain_output="$(nft list chain inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" 2>/dev/null)"
+	if [ -z "$chain_output" ]; then
+		echo "[!] nftables zinciri bulunamadı."
+		return 1
+	fi
+
+	_traffic_stats_cb() {
+		local section="$1"
+		local name enabled
+		config_get name "$section" "name" ""
+		config_get enabled "$section" "enabled" "1"
+		[ -z "$name" ] && return 0
+
+		local set_name="mergen_${name}"
+		local packets=0 bytes=0 packets_v6=0 bytes_v6=0
+
+		# IPv4 counter
+		local line_v4
+		line_v4="$(echo "$chain_output" | grep "@${set_name} " | head -1)"
+		if [ -n "$line_v4" ]; then
+			packets="$(echo "$line_v4" | sed -n 's/.*counter packets \([0-9]*\).*/\1/p')"
+			bytes="$(echo "$line_v4" | sed -n 's/.*bytes \([0-9]*\).*/\1/p')"
+		fi
+		[ -z "$packets" ] && packets=0
+		[ -z "$bytes" ] && bytes=0
+
+		# IPv6 counter
+		local line_v6
+		line_v6="$(echo "$chain_output" | grep "@${set_name}_v6 " | head -1)"
+		if [ -n "$line_v6" ]; then
+			packets_v6="$(echo "$line_v6" | sed -n 's/.*counter packets \([0-9]*\).*/\1/p')"
+			bytes_v6="$(echo "$line_v6" | sed -n 's/.*bytes \([0-9]*\).*/\1/p')"
+		fi
+		[ -z "$packets_v6" ] && packets_v6=0
+		[ -z "$bytes_v6" ] && bytes_v6=0
+
+		local total_packets=$((packets + packets_v6))
+		local total_bytes=$((bytes + bytes_v6))
+
+		# Human-readable bytes
+		local hr_bytes
+		hr_bytes="$(_format_bytes "$total_bytes")"
+
+		local status_mark="+"
+		[ "$enabled" != "1" ] && status_mark="-"
+
+		printf " %s %-20s %12s paket  %10s\n" "$status_mark" "$name" "$total_packets" "$hr_bytes"
+	}
+
+	config_load "$MERGEN_CONF"
+	config_foreach _traffic_stats_cb "rule"
+}
+
+# Format bytes to human-readable string
+_format_bytes() {
+	local bytes="$1"
+	if [ "$bytes" -ge 1073741824 ]; then
+		local gb=$((bytes / 1073741824))
+		local gb_rem=$(( (bytes % 1073741824) * 10 / 1073741824 ))
+		echo "${gb}.${gb_rem} GB"
+	elif [ "$bytes" -ge 1048576 ]; then
+		local mb=$((bytes / 1048576))
+		local mb_rem=$(( (bytes % 1048576) * 10 / 1048576 ))
+		echo "${mb}.${mb_rem} MB"
+	elif [ "$bytes" -ge 1024 ]; then
+		local kb=$((bytes / 1024))
+		local kb_rem=$(( (bytes % 1024) * 10 / 1024 ))
+		echo "${kb}.${kb_rem} KB"
+	else
+		echo "${bytes} B"
+	fi
 }
 
 # Save nftables state to snapshot directory
@@ -1238,12 +1357,12 @@ mergen_nft_rule_add_v6() {
 	fi
 
 	if ! nft add rule inet "$MERGEN_NFT_TABLE" "$MERGEN_NFT_CHAIN" \
-		ip6 daddr "@${set_name}" meta mark set "$fwmark" 2>/dev/null; then
+		ip6 daddr "@${set_name}" counter meta mark set "$fwmark" 2>/dev/null; then
 		mergen_log "error" "NFT" "[!] Hata: IPv6 fwmark kuralı eklenemedi: ${set_name} -> ${fwmark}"
 		return 1
 	fi
 
-	mergen_log "debug" "NFT" "IPv6 fwmark kuralı eklendi: @${set_name} -> mark ${fwmark}"
+	mergen_log "debug" "NFT" "IPv6 fwmark kuralı eklendi (counter): @${set_name} -> mark ${fwmark}"
 	return 0
 }
 
@@ -1887,4 +2006,147 @@ _mergen_dnsmasq_restart() {
 	else
 		mergen_log "warning" "DNS" "dnsmasq servisi bulunamadı."
 	fi
+}
+
+# ── Interface Health Check & Failover ──────────────────────
+
+MERGEN_FAILOVER_STATE_DIR="${MERGEN_TMP:-/tmp/mergen}/failover"
+
+# Check interface health by pinging the gateway
+# Usage: mergen_interface_health_check <interface>
+# Returns 0 if healthy, 1 if unreachable
+mergen_interface_health_check() {
+	local interface="$1"
+	local ping_count=3
+	local ping_timeout=5
+
+	if [ -z "$interface" ]; then
+		return 1
+	fi
+
+	# Check if interface exists and is up
+	if ! ip link show dev "$interface" up >/dev/null 2>&1; then
+		return 1
+	fi
+
+	# Try to detect gateway
+	if ! mergen_detect_gateway "$interface"; then
+		return 1
+	fi
+	local gw="$MERGEN_GATEWAY_ADDR"
+
+	# Ping the gateway
+	if ping -c "$ping_count" -W "$ping_timeout" -I "$interface" "$gw" >/dev/null 2>&1; then
+		return 0
+	fi
+
+	return 1
+}
+
+# Execute failover for a single rule
+# Moves routes from primary interface to fallback interface
+# Usage: mergen_failover_activate <rule_name> <fallback_interface>
+mergen_failover_activate() {
+	local rule_name="$1"
+	local fallback_via="$2"
+
+	if [ -z "$rule_name" ] || [ -z "$fallback_via" ]; then
+		return 1
+	fi
+
+	# Record original via for later recovery
+	mkdir -p "$MERGEN_FAILOVER_STATE_DIR"
+	local state_file="${MERGEN_FAILOVER_STATE_DIR}/${rule_name}"
+
+	if [ -f "$state_file" ]; then
+		mergen_log "debug" "Failover" "Kural '${rule_name}' zaten failover durumunda."
+		return 0
+	fi
+
+	# Get current rule details
+	if ! mergen_rule_get "$rule_name"; then
+		return 1
+	fi
+	local original_via="$MERGEN_RULE_VIA"
+
+	# Save original state
+	echo "$original_via" > "$state_file"
+
+	# Remove current routes
+	mergen_route_remove "$rule_name"
+
+	# Temporarily override the via to fallback interface in UCI
+	local section_id
+	if mergen_find_rule_by_name "$rule_name"; then
+		section_id="$MERGEN_FOUND_SECTION"
+		uci set "${MERGEN_CONF}.${section_id}.via=${fallback_via}"
+		uci commit "$MERGEN_CONF"
+	fi
+
+	# Re-apply with fallback interface
+	mergen_route_apply "$rule_name"
+
+	mergen_log "warning" "Failover" "Kural '${rule_name}' failover aktif: ${original_via} -> ${fallback_via}"
+	return 0
+}
+
+# Restore a rule from failover back to its original interface
+# Usage: mergen_failover_restore <rule_name>
+mergen_failover_restore() {
+	local rule_name="$1"
+	local state_file="${MERGEN_FAILOVER_STATE_DIR}/${rule_name}"
+
+	if [ ! -f "$state_file" ]; then
+		return 0
+	fi
+
+	local original_via
+	original_via="$(cat "$state_file" 2>/dev/null)"
+
+	if [ -z "$original_via" ]; then
+		rm -f "$state_file"
+		return 1
+	fi
+
+	# Remove failover routes
+	mergen_route_remove "$rule_name"
+
+	# Restore original via in UCI
+	local section_id
+	if mergen_find_rule_by_name "$rule_name"; then
+		section_id="$MERGEN_FOUND_SECTION"
+		uci set "${MERGEN_CONF}.${section_id}.via=${original_via}"
+		uci commit "$MERGEN_CONF"
+	fi
+
+	# Re-apply with original interface
+	mergen_route_apply "$rule_name"
+
+	# Clean up state file
+	rm -f "$state_file"
+
+	mergen_log "info" "Failover" "Kural '${rule_name}' failover bitti, orijinal arayüz geri yüklendi: ${original_via}"
+	return 0
+}
+
+# Check if a rule is currently in failover state
+# Usage: mergen_failover_active <rule_name>
+# Returns 0 if in failover, 1 otherwise
+mergen_failover_active() {
+	local rule_name="$1"
+	[ -f "${MERGEN_FAILOVER_STATE_DIR}/${rule_name}" ]
+}
+
+# Get the original via for a rule in failover
+# Usage: mergen_failover_original_via <rule_name>
+# Prints original interface name, returns 1 if not in failover
+mergen_failover_original_via() {
+	local rule_name="$1"
+	local state_file="${MERGEN_FAILOVER_STATE_DIR}/${rule_name}"
+
+	if [ -f "$state_file" ]; then
+		cat "$state_file" 2>/dev/null
+		return 0
+	fi
+	return 1
 }

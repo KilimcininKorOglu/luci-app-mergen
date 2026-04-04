@@ -101,6 +101,9 @@ function index()
 
 	entry({"admin", "services", "mergen", "rpc", "test_provider"},
 		post("rpc_test_provider")).leaf = true
+
+	entry({"admin", "services", "mergen", "rpc", "traffic_stats"},
+		call("rpc_traffic_stats")).leaf = true
 end
 
 -- Helper: execute mergen CLI command and return output
@@ -876,5 +879,66 @@ function rpc_test_provider()
 		test_passed = success,
 		output = output,
 		mode = "single"
+	})
+end
+
+-- RPC: Get traffic statistics for all rules
+function rpc_traffic_stats()
+	local uci = require "luci.model.uci".cursor()
+	local util = require "luci.util"
+	local nixio = require "nixio"
+	local fs = require "nixio.fs"
+
+	local rules = {}
+
+	-- Read nftables chain output for counter parsing
+	local chain_output = util.exec(
+		"nft list chain inet mergen mergen_prerouting 2>/dev/null") or ""
+
+	uci:foreach("mergen", "rule", function(s)
+		local name = s.name or s[".name"] or ""
+		local enabled = s.enabled or "1"
+		local via = s.via or ""
+		local fallback = s.fallback or ""
+		local set_name = "mergen_" .. name
+
+		local packets = 0
+		local bytes = 0
+
+		-- Parse counter from nft output
+		for line in chain_output:gmatch("[^\n]+") do
+			if line:match("@" .. set_name .. "[_%s]") or line:match("@" .. set_name .. " ") then
+				local p = line:match("counter packets (%d+)")
+				local b = line:match("bytes (%d+)")
+				if p then packets = packets + tonumber(p) end
+				if b then bytes = bytes + tonumber(b) end
+			end
+		end
+
+		-- Check failover state
+		local failover_active = false
+		local original_via = ""
+		local state_file = "/tmp/mergen/failover/" .. name
+		if fs.stat(state_file) then
+			failover_active = true
+			original_via = fs.readfile(state_file) or ""
+			original_via = original_via:gsub("%s+$", "")
+		end
+
+		rules[#rules + 1] = {
+			name = name,
+			enabled = (enabled == "1"),
+			via = via,
+			fallback = fallback,
+			packets = packets,
+			bytes = bytes,
+			failover_active = failover_active,
+			original_via = original_via
+		}
+	end)
+
+	json_response({
+		success = true,
+		rules = rules
 	})
 end

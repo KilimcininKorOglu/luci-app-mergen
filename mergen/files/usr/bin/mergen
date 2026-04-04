@@ -63,23 +63,24 @@ cmd_help() {
 			;;
 		add)
 			cat <<'HELP'
-Kullanim: mergen add --name <AD> --asn <ASN> --via <ARAYUZ> [--priority <ONCELIK>]
-          mergen add --name <AD> --ip <CIDR> --via <ARAYUZ> [--priority <ONCELIK>]
-          mergen add --name <AD> --domain <DOMAIN> --via <ARAYUZ> [--priority <ONCELIK>]
-          mergen add --name <AD> --country <ULKE> --via <ARAYUZ> [--priority <ONCELIK>]
+Kullanim: mergen add --name <AD> --asn <ASN> --via <ARAYUZ> [--priority <ONCELIK>] [--fallback <ARAYUZ>]
+          mergen add --name <AD> --ip <CIDR> --via <ARAYUZ> [--priority <ONCELIK>] [--fallback <ARAYUZ>]
+          mergen add --name <AD> --domain <DOMAIN> --via <ARAYUZ> [--priority <ONCELIK>] [--fallback <ARAYUZ>]
+          mergen add --name <AD> --country <ULKE> --via <ARAYUZ> [--priority <ONCELIK>] [--fallback <ARAYUZ>]
 
 Yeni bir yonlendirme kurali ekler.
 
 Secenekler:
-  --name <AD>          Kural adi (benzersiz, alfanumerik + tire/alt cizgi)
-  --asn <ASN>          ASN numarasi (virgul ile birden fazla: 13335,15169)
-  --ip <CIDR>          IP/CIDR blogu (virgul ile birden fazla: 10.0.0.0/8,172.16.0.0/12)
-  --domain <DOMAIN>    Domain adi (virgul ile birden fazla: netflix.com,hulu.com)
-                       Wildcard destegi: *.netflix.com (dnsmasq nftset/ipset)
-  --country <ULKE>     Ulke kodu (ISO 3166-1 alpha-2: TR, US, DE)
-                       Ulkedeki tum ASN'lerin prefixlerini toplu olarak ekler
-  --via <ARAYUZ>       Cikis arayuzu (orn: wg0, eth1)
-  --priority <ONCELIK> Oncelik degeri (1-32000, varsayilan: 100)
+  --name <AD>            Kural adi (benzersiz, alfanumerik + tire/alt cizgi)
+  --asn <ASN>            ASN numarasi (virgul ile birden fazla: 13335,15169)
+  --ip <CIDR>            IP/CIDR blogu (virgul ile birden fazla: 10.0.0.0/8,172.16.0.0/12)
+  --domain <DOMAIN>      Domain adi (virgul ile birden fazla: netflix.com,hulu.com)
+                         Wildcard destegi: *.netflix.com (dnsmasq nftset/ipset)
+  --country <ULKE>       Ulke kodu (ISO 3166-1 alpha-2: TR, US, DE)
+                         Ulkedeki tum ASN'lerin prefixlerini toplu olarak ekler
+  --via <ARAYUZ>         Cikis arayuzu (orn: wg0, eth1)
+  --priority <ONCELIK>   Oncelik degeri (1-32000, varsayilan: 100)
+  --fallback <ARAYUZ>    Yedek arayuz (arayuz cokerse otomatik gecis)
 
 Ornekler:
   mergen add --name cloudflare --asn 13335 --via wg0
@@ -87,6 +88,7 @@ Ornekler:
   mergen add --name internal --ip 10.0.0.0/8 --via lan
   mergen add --name streaming --domain netflix.com,hulu.com --via wg0
   mergen add --name turkiye --country TR --via wan
+  mergen add --name vpn-route --asn 13335 --via wg0 --fallback wan
 HELP
 			;;
 		remove)
@@ -184,9 +186,14 @@ HELP
 			;;
 		status)
 			cat <<'HELP'
-Kullanim: mergen status
+Kullanim: mergen status [--traffic]
 
 Mergen servis durumunu, kural sayilarini ve onbellek istatistiklerini gosterir.
+
+Secenekler:
+  --traffic    Kural bazli trafik istatistiklerini goster (nftables counter)
+               Paket sayisi ve bayt miktarini tablo formatinda listeler.
+               Failover durumundaki kurallari da gosterir.
 HELP
 			;;
 		diag)
@@ -344,7 +351,7 @@ cmd_version() {
 # ── Add ────────────────────────────────────────────────────
 
 cmd_add() {
-	local name="" type="" targets="" via="" priority=""
+	local name="" type="" targets="" via="" priority="" fallback=""
 
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -416,6 +423,10 @@ cmd_add() {
 				[ -z "$2" ] && { echo "[!] Hata: --priority degeri gerekli." >&2; return 2; }
 				priority="$2"; shift 2
 				;;
+			--fallback)
+				[ -z "$2" ] && { echo "[!] Hata: --fallback degeri gerekli." >&2; return 2; }
+				fallback="$2"; shift 2
+				;;
 			*)
 				printf "[!] Hata: Bilinmeyen secenek '%s'. 'mergen help add' ile kullanimi gorun.\n" "$1" >&2
 				return 2
@@ -441,6 +452,15 @@ cmd_add() {
 	fi
 
 	if mergen_rule_add "$name" "$type" "$targets" "$via" "$priority"; then
+		# Set fallback interface if provided
+		if [ -n "$fallback" ]; then
+			local section_id
+			if mergen_find_rule_by_name "$name"; then
+				section_id="$MERGEN_FOUND_SECTION"
+				uci set "${MERGEN_CONF}.${section_id}.fallback=${fallback}"
+				uci commit "$MERGEN_CONF"
+			fi
+		fi
 		printf "[+] Kural eklendi: %s (%s: %s -> %s)\n" "$name" "$type" "$targets" "$via"
 		return 0
 	fi
@@ -522,6 +542,32 @@ cmd_show() {
 
 	if [ -n "$MERGEN_RULE_TAGS" ]; then
 		printf "Etiket:   %s\n" "$MERGEN_RULE_TAGS"
+	fi
+
+	# Show fallback interface if configured
+	local fallback_via=""
+	if mergen_find_rule_by_name "$name"; then
+		config_get fallback_via "$MERGEN_FOUND_SECTION" "fallback" ""
+	fi
+	if [ -n "$fallback_via" ]; then
+		printf "Fallback: %s\n" "$fallback_via"
+	fi
+
+	# Show failover status
+	if mergen_failover_active "$name"; then
+		local orig_via
+		orig_via="$(mergen_failover_original_via "$name")"
+		printf "Failover: AKTIF (orijinal: %s)\n" "$orig_via"
+	fi
+
+	# Show traffic statistics if nftables
+	mergen_engine_detect
+	if [ "$MERGEN_ENGINE_ACTIVE" = "nftables" ]; then
+		if mergen_nft_counter_get "$name"; then
+			if [ "$MERGEN_NFT_PACKETS" -gt 0 ] || [ "$MERGEN_NFT_BYTES" -gt 0 ]; then
+				printf "Trafik:   %s paket, %s\n" "$MERGEN_NFT_PACKETS" "$(_format_bytes "$MERGEN_NFT_BYTES")"
+			fi
+		fi
 	fi
 
 	# Show routing status if available (return code ignored — optional info)
@@ -1286,6 +1332,45 @@ cmd_rollback() {
 # ── Status ─────────────────────────────────────────────────
 
 cmd_status() {
+	local show_traffic=0
+
+	while [ $# -gt 0 ]; do
+		case "$1" in
+			--traffic) show_traffic=1; shift ;;
+			*)
+				printf "[!] Hata: Bilinmeyen secenek '%s'. 'mergen help status' ile kullanimi gorun.\n" "$1" >&2
+				return 2
+				;;
+		esac
+	done
+
+	# If --traffic, show only traffic statistics
+	if [ "$show_traffic" = "1" ]; then
+		echo "[*] Trafik Istatistikleri"
+		echo "─────────────────────────────────────────────────────────"
+		printf " %-1s %-20s %12s  %10s\n" " " "Kural" "Paket" "Boyut"
+		echo "─────────────────────────────────────────────────────────"
+		mergen_traffic_stats
+		echo "─────────────────────────────────────────────────────────"
+
+		# Show failover status
+		local failover_dir="${MERGEN_TMP}/failover"
+		if [ -d "$failover_dir" ] && [ "$(ls -A "$failover_dir" 2>/dev/null)" ]; then
+			echo ""
+			echo "[*] Failover Durumu"
+			echo "─────────────────────────────────────────────────────────"
+			local f_name f_orig
+			for f_file in "${failover_dir}"/*; do
+				[ -f "$f_file" ] || continue
+				f_name="$(basename "$f_file")"
+				f_orig="$(cat "$f_file" 2>/dev/null)"
+				printf "  %-20s orijinal: %-10s (failover aktif)\n" "$f_name" "$f_orig"
+			done
+			echo "─────────────────────────────────────────────────────────"
+		fi
+		return 0
+	fi
+
 	cmd_version
 	echo ""
 
@@ -1305,6 +1390,14 @@ cmd_status() {
 	disabled_rules="$(mergen_count_rules_enabled 0)"
 	printf "Kurallar:     %s toplam (%s aktif, %s devre disi)\n" \
 		"$total_rules" "$active_rules" "$disabled_rules"
+
+	# Failover count
+	local failover_count=0
+	local failover_dir="${MERGEN_TMP}/failover"
+	if [ -d "$failover_dir" ]; then
+		failover_count="$(ls -1 "$failover_dir" 2>/dev/null | wc -l | tr -d ' ')"
+	fi
+	[ "$failover_count" -gt 0 ] && printf "Failover:     %s kural aktif\n" "$failover_count"
 
 	# Cache stats
 	mergen_resolver_init

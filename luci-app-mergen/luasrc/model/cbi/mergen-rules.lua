@@ -124,6 +124,23 @@ pr.default = "100"
 pr.datatype = "range(1,32000)"
 pr.placeholder = "100"
 
+-- ── Fallback Interface ─────────────────────────────────
+fb = s:option(ListValue, "fallback", translate("Fallback Interface"))
+fb.optional = true
+fb.rmempty = true
+fb:value("", translate("-- None --"))
+for _, iface in ipairs(ifaces) do
+	if iface ~= "lo" then
+		fb:value(iface, iface)
+	end
+end
+uci:foreach("network", "interface", function(s)
+	local ifname = s[".name"]
+	if ifname and ifname ~= "loopback" then
+		fb:value(ifname, ifname .. " (logical)")
+	end
+end)
+
 -- ── Tags ───────────────────────────────────────────────
 tg = s:option(Value, "tag", translate("Tags"))
 tg.placeholder = "vpn, office"

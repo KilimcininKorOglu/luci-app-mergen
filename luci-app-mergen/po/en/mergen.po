@@ -480,3 +480,12 @@ msgstr "Provider testing, cache management and health monitoring."
 
 msgid "Configure ASN resolution data providers, fallback strategy and cache settings."
 msgstr "Configure ASN resolution data providers, fallback strategy and cache settings."
+
+msgid "Traffic"
+msgstr "Traffic"
+
+msgid "Fallback Interface"
+msgstr "Fallback Interface"
+
+msgid "-- None --"
+msgstr "-- None --"

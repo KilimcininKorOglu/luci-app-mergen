@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 5     | 10%        |
+| NOT_STARTED | 4     | 8%         |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 44    | 90%        |
+| COMPLETED   | 45    | 92%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -109,7 +109,7 @@
 |------|---------|-----------------------------------|----------|--------|-------------|--------------|
 | T042 | F013    | DNS-Based Routing                 | P3       | 3d     | COMPLETED   | T017, T018   |
 | T043 | F013    | Country-Based Routing             | P3       | 2d     | COMPLETED   | T024, T010   |
-| T044 | F013    | Traffic Statistics & Failover     | P3       | 3d     | NOT_STARTED | T017, T012   |
+| T044 | F013    | Traffic Statistics & Failover     | P3       | 3d     | COMPLETED   | T017, T012   |
 | T045 | F013    | mwan3 Integration                 | P4       | 2d     | NOT_STARTED | T008         |
 | T046 | F014    | Performance & Platform Testing    | P2       | 3d     | NOT_STARTED | T017, T027   |
 | T047 | F014    | Documentation & Feed Submission   | P2       | 2.5d   | NOT_STARTED | T046         |
