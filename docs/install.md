@@ -1,67 +1,68 @@
-# Mergen Installation Guide
+# Mergen Kurulum Kılavuzu
 
-Mergen is an ASN/IP based policy routing tool for OpenWrt. It enables you to
-route traffic through different WAN interfaces based on destination ASN or IP
-ranges.
+[English](install.en.md)
 
----
-
-## Requirements
-
-| Requirement      | Minimum                                   |
-|------------------|-------------------------------------------|
-| OpenWrt version  | 23.05 or later                            |
-| Firewall backend | nftables (default) or iptables with ipset |
-| Disk space       | ~500 KB                                   |
-| RAM              | 32 MB or more                             |
-
-Mergen supports both the nftables backend (default on OpenWrt 22.03+) and the
-legacy iptables/ipset backend. The appropriate backend is detected automatically
-at runtime.
+Mergen, OpenWrt için ASN/IP tabanlı politika yönlendirme aracıdır. Hedef ASN
+veya IP aralıklarına göre trafiği farklı WAN arayüzleri üzerinden
+yönlendirmenizi sağlar.
 
 ---
 
-## Installation via opkg
+## Gereksinimler
 
-This is the recommended method for most users.
+| Gereksinim       | Minimum                                       |
+|------------------|-----------------------------------------------|
+| OpenWrt sürümü   | 23.05 veya sonrası                            |
+| Güvenlik duvarı  | nftables (varsayılan) veya iptables ile ipset |
+| Disk alanı       | ~500 KB                                       |
+| RAM              | 32 MB veya daha fazla                         |
+
+Mergen hem nftables (OpenWrt 22.03+ ile varsayılan) hem de eski iptables/ipset
+arka ucunu destekler. Uygun arka uç çalışma zamanında otomatik olarak algılanır.
+
+---
+
+## opkg ile Kurulum
+
+Çoğu kullanıcı için önerilen yöntemdir.
 
 ```sh
 opkg update
 opkg install mergen luci-app-mergen
 ```
 
-The `luci-app-mergen` package is optional and provides a web interface through
-LuCI. If you plan to manage Mergen exclusively via the command line, you can
-omit it.
+`luci-app-mergen` paketi isteğe bağlıdır ve LuCI üzerinden bir web arayüzü
+sağlar. Mergen'i yalnızca komut satırı üzerinden yönetmeyi planlıyorsanız bu
+paketi atlayabilirsiniz.
 
 ---
 
-## Manual Installation from Source
+## Kaynaktan Manuel Kurulum
 
-For development builds or architectures not yet covered by the package feed,
-you can compile Mergen within the OpenWrt build system.
+Paket akışında henüz kapsanmayan geliştirme derlemeleri veya mimariler için
+Mergen'i OpenWrt derleme sistemi içerisinde derleyebilirsiniz.
 
-1. Clone the repository into your OpenWrt source tree:
+1. Depoyu OpenWrt kaynak ağacınıza klonlayın:
 
    ```sh
    cd /path/to/openwrt
    git clone https://github.com/KilimcininKorOglu/luci-app-mergen.git package/mergen
    ```
 
-2. Update the feed index and select the package:
+2. Akış indeksini güncelleyin ve paketi seçin:
 
    ```sh
    make menuconfig   # Navigate to Network -> Routing and Redirection -> mergen
    ```
 
-3. Compile the package:
+3. Paketi derleyin:
 
    ```sh
    make package/mergen/compile V=s
    ```
 
-4. The resulting `.ipk` file will be located under `bin/packages/`. Transfer it
-   to your router and install manually:
+4. Oluşturulan `.ipk` dosyası `bin/packages/` altında bulunacaktır. Dosyayı
+   yönlendiricinize aktarın ve elle kurun:
 
    ```sh
    opkg install /tmp/mergen_*.ipk
@@ -69,60 +70,60 @@ you can compile Mergen within the OpenWrt build system.
 
 ---
 
-## Post-Install Verification
+## Kurulum Sonrası Doğrulama
 
-After installation, confirm that Mergen is operational:
+Kurulumdan sonra Mergen'in çalışır durumda olduğunu doğrulayın:
 
 ```sh
 mergen version
 ```
 
-Expected output includes the installed version number and build information.
+Beklenen çıktı, kurulu sürüm numarası ve derleme bilgisini içerir.
 
 ```sh
 mergen status
 ```
 
-This displays the current routing policy state, active rules, and the firewall
-backend in use. A healthy installation reports `status: running` with no errors.
+Bu komut mevcut yönlendirme politikası durumunu, aktif kuralları ve kullanılan
+güvenlik duvarı arka ucunu görüntüler. Sağlıklı bir kurulum hatasız olarak
+`status: running` rapor eder.
 
 ---
 
-## Dependencies
+## Bağımlılıklar
 
-Mergen pulls in the following dependencies automatically when installed via
-opkg:
+Mergen, opkg ile kurulduğunda aşağıdaki bağımlılıkları otomatik olarak çeker:
 
-| Dependency | Purpose                                                   |
-|------------|-----------------------------------------------------------|
-| dnsmasq    | Required for DNS-based routing (ipset/nftset integration) |
-| nftables   | Default firewall backend for set-based routing rules      |
-| ipset      | Alternative backend when using iptables (legacy systems)  |
+| Bağımlılık | Amaç                                                          |
+|------------|---------------------------------------------------------------|
+| dnsmasq    | DNS tabanlı yönlendirme için gerekli (ipset/nftset entegre)  |
+| nftables   | Küme tabanlı yönlendirme kuralları için varsayılan arka uç    |
+| ipset      | iptables kullanıldığında alternatif arka uç (eski sistemler)  |
 
-If your OpenWrt installation uses the default nftables backend, no additional
-configuration is needed. For iptables-based setups, ensure that `kmod-ipt-ipset`
-and `ipset` are installed.
+OpenWrt kurulumunuz varsayılan nftables arka ucunu kullanıyorsa ek bir
+yapılandırma gerekmez. iptables tabanlı kurulumlar için `kmod-ipt-ipset` ve
+`ipset` paketlerinin kurulu olduğundan emin olun.
 
-> **Note:** Mergen requires dnsmasq rather than dnsmasq-full in most cases.
-> However, if you need advanced DNS features (DNSSEC, conntrack marking), install
-> `dnsmasq-full` instead.
+> **Not:** Mergen çoğu durumda dnsmasq-full yerine dnsmasq gerektirir. Ancak
+> gelişmiş DNS özelliklerine (DNSSEC, conntrack işaretleme) ihtiyacınız varsa
+> bunun yerine `dnsmasq-full` kurun.
 
 ---
 
-## Upgrading
+## Güncelleme
 
-To upgrade an existing installation:
+Mevcut bir kurulumu güncellemek için:
 
 ```sh
 opkg update
 opkg upgrade mergen
 ```
 
-Configuration migration is automatic. Your existing routing policies, ASN lists,
-and interface assignments are preserved across upgrades. No manual intervention
-is required.
+Yapılandırma geçişi otomatiktir. Mevcut yönlendirme politikalarınız, ASN
+listeleri ve arayüz atamaları güncellemeler arasında korunur. Manuel müdahale
+gerekmez.
 
-After upgrading, verify the new version:
+Güncellemeden sonra yeni sürümü doğrulayın:
 
 ```sh
 mergen version
@@ -131,25 +132,26 @@ mergen status
 
 ---
 
-## Uninstallation
+## Kaldırma
 
-To remove Mergen and its LuCI interface:
+Mergen'i ve LuCI arayüzünü kaldırmak için:
 
 ```sh
 opkg remove luci-app-mergen
 opkg remove mergen
 ```
 
-This removes the binaries and default configuration. Custom configuration files
-under `/etc/mergen/` are preserved by opkg's conffile mechanism. To perform a
-complete removal including configuration:
+Bu işlem ikili dosyaları ve varsayılan yapılandırmayı kaldırır. `/etc/mergen/`
+altındaki özel yapılandırma dosyaları opkg'nin conffile mekanizması tarafından
+korunur. Yapılandırma dahil tam bir kaldırma için:
 
 ```sh
 opkg remove mergen luci-app-mergen
 rm -rf /etc/mergen/
 ```
 
-After removal, restart the firewall to clean up any remaining routing rules:
+Kaldırma işleminden sonra kalan yönlendirme kurallarını temizlemek için güvenlik
+duvarını yeniden başlatın:
 
 ```sh
 /etc/init.d/firewall restart

@@ -1,16 +1,18 @@
-# Mergen CLI Reference
+# Mergen CLI Referansı
 
-Mergen is an ASN/IP-based policy routing tool for OpenWrt. It resolves ASN prefixes automatically and manages `ip rule`, `ip route`, and `nftables`/`ipset` entries to steer traffic through designated network interfaces.
+[English](cli-reference.en.md)
 
-All commands require root privileges.
+Mergen, OpenWrt için ASN/IP tabanlı politika yönlendirme aracıdır. ASN ön eklerini otomatik olarak çözümler ve trafiği belirlenen ağ arayüzleri üzerinden yönlendirmek için `ip rule`, `ip route` ve `nftables`/`ipset` girişlerini yönetir.
+
+Tüm komutlar root yetkisi gerektirir.
 
 ```
-mergen <command> [options]
+mergen <komut> [seçenekler]
 ```
 
 ---
 
-## Table of Contents
+## İçindekiler
 
 - [add](#add)
 - [remove](#remove)
@@ -38,45 +40,45 @@ mergen <command> [options]
 
 ## add
 
-Create a new policy routing rule. Each rule binds a set of destinations (ASN prefixes, IP/CIDR blocks, domains, or country-level ASNs) to a target network interface.
+Yeni bir politika yönlendirme kuralı oluşturur. Her kural, bir hedef kümesini (ASN ön ekleri, IP/CIDR blokları, alan adları veya ülke bazlı ASN'ler) bir hedef ağ arayüzüne bağlar.
 
-**Syntax**
+**Sözdizimi**
 
 ```
-mergen add --name <NAME> (--asn <ASN> | --ip <CIDR> | --domain <FQDN> | --country <CC>) --via <IFACE> [--priority <N>] [--fallback <IFACE>]
+mergen add --name <AD> (--asn <ASN> | --ip <CIDR> | --domain <FQDN> | --country <CC>) --via <ARAYÜZ> [--priority <N>] [--fallback <ARAYÜZ>]
 ```
 
-**Options**
+**Seçenekler**
 
-| Option             | Required | Description                                                                                      |
-|--------------------|----------|--------------------------------------------------------------------------------------------------|
-| `--name <NAME>`    | Yes      | Unique human-readable identifier for the rule.                                                   |
-| `--asn <ASN>`      | No*      | Autonomous System Number. Mergen resolves all announced prefixes for this ASN automatically.      |
-| `--ip <CIDR>`      | No*      | IPv4 or IPv6 address block in CIDR notation (e.g. `185.70.40.0/22`).                             |
-| `--domain <FQDN>`  | No*      | Fully qualified domain name. Resolved via dnsmasq nftset/ipset integration.                      |
-| `--country <CC>`   | No*      | ISO 3166-1 alpha-2 country code (e.g. `TR`, `US`). Adds all ASNs registered in that country.     |
-| `--via <IFACE>`    | Yes      | Target network interface for matching traffic (e.g. `wg0`, `wan2`, `lan`).                       |
-| `--priority <N>`   | No       | Routing rule priority. Lower values are evaluated first. Default: `100`. Range: `1`--`32000`.     |
-| `--fallback <IFACE>` | No    | Fallback interface used when the primary `--via` interface goes down.                            |
+| Seçenek                  | Zorunlu  | Açıklama                                                                                         |
+|--------------------------|----------|--------------------------------------------------------------------------------------------------|
+| `--name <AD>`            | Evet     | Kural için benzersiz, okunabilir bir tanımlayıcı.                                                |
+| `--asn <ASN>`            | Hayır*   | Otonom Sistem Numarası. Mergen bu ASN için duyurulan tüm ön ekleri otomatik olarak çözümler.     |
+| `--ip <CIDR>`            | Hayır*   | CIDR gösteriminde IPv4 veya IPv6 adres bloğu (örneğin `185.70.40.0/22`).                        |
+| `--domain <FQDN>`        | Hayır*   | Tam nitelikli alan adı. dnsmasq nftset/ipset entegrasyonu ile çözümlenir.                        |
+| `--country <CC>`         | Hayır*   | ISO 3166-1 alpha-2 ülke kodu (örneğin `TR`, `US`). O ülkede kayıtlı tüm ASN'leri ekler.        |
+| `--via <ARAYÜZ>`         | Evet     | Eşleşen trafik için hedef ağ arayüzü (örneğin `wg0`, `wan2`, `lan`).                            |
+| `--priority <N>`         | Hayır    | Yönlendirme kuralı önceliği. Düşük değerler önce değerlendirilir. Varsayılan: `100`. Aralık: `1`--`32000`. |
+| `--fallback <ARAYÜZ>`    | Hayır    | Birincil `--via` arayüzü devre dışı kaldığında kullanılan yedek arayüz.                         |
 
-\* Exactly one of `--asn`, `--ip`, `--domain`, or `--country` is required.
+\* `--asn`, `--ip`, `--domain` veya `--country` seçeneklerinden tam olarak biri zorunludur.
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Route all Cloudflare (AS13335) traffic through a WireGuard tunnel
+# Tüm Cloudflare (AS13335) trafiğini bir WireGuard tüneli üzerinden yönlendir
 mergen add --name cloudflare --asn 13335 --via wg0
 
-# Route a specific subnet through a secondary WAN
+# Belirli bir alt ağı ikincil WAN üzerinden yönlendir
 mergen add --name office-vpn --ip 10.0.0.0/8 --via wan2 --priority 50
 
-# Route a domain through VPN with DNS-based resolution
+# Bir alan adını DNS tabanlı çözümleme ile VPN üzerinden yönlendir
 mergen add --name protonmail --domain protonmail.com --via wg0
 
-# Route all Turkey-registered ASNs through the default WAN
+# Türkiye'de kayıtlı tüm ASN'leri varsayılan WAN üzerinden yönlendir
 mergen add --name turkey-direct --country TR --via wan
 
-# Route with failover: use wg0, fall back to wan if the tunnel drops
+# Yedekli yönlendirme: wg0 kullan, tünel düşerse wan'a geç
 mergen add --name google --asn 15169 --via wg0 --fallback wan --priority 200
 ```
 
@@ -84,27 +86,27 @@ mergen add --name google --asn 15169 --via wg0 --fallback wan --priority 200
 
 ## remove
 
-Delete an existing rule by name. This removes the rule from the UCI configuration. The rule's routes remain active until the next `mergen apply` or `mergen flush`.
+Mevcut bir kuralı ada göre siler. Bu, kuralı UCI yapılandırmasından kaldırır. Kuralın rotaları bir sonraki `mergen apply` veya `mergen flush` işlemine kadar aktif kalır.
 
-**Syntax**
+**Sözdizimi**
 
 ```
-mergen remove <NAME>
+mergen remove <AD>
 ```
 
-**Arguments**
+**Argümanlar**
 
-| Argument | Required | Description                     |
+| Argüman  | Zorunlu  | Açıklama                        |
 |----------|----------|---------------------------------|
-| `<NAME>` | Yes      | Name of the rule to remove.     |
+| `<AD>`   | Evet     | Silinecek kuralın adı.          |
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Remove the rule named "cloudflare"
+# "cloudflare" adlı kuralı sil
 mergen remove cloudflare
 
-# Remove and immediately re-apply to clear stale routes
+# Sil ve eski rotaları temizlemek için hemen yeniden uygula
 mergen remove office-vpn && mergen apply
 ```
 
@@ -112,27 +114,27 @@ mergen remove office-vpn && mergen apply
 
 ## list
 
-Display all configured rules in a summary table.
+Yapılandırılmış tüm kuralları bir özet tablosu olarak görüntüle.
 
-**Syntax**
+**Sözdizimi**
 
 ```
 mergen list
 ```
 
-**Output Columns**
+**Çıktı Sütunları**
 
-| Column | Description                                                    |
+| Sütun  | Açıklama                                                       |
 |--------|----------------------------------------------------------------|
-| ID     | Sequential row number.                                         |
-| NAME   | Rule name.                                                     |
-| TYPE   | Rule type: `ASN`, `IP`, `DOMAIN`, or `COUNTRY`.               |
-| TARGET | ASN number, CIDR block, domain, or country code.               |
-| VIA    | Target interface.                                              |
-| PRI    | Priority value.                                                |
-| STATUS | Current state: `active`, `pending`, `disabled`, or `failed`.   |
+| ID     | Sıra numarası.                                                |
+| NAME   | Kural adı.                                                    |
+| TYPE   | Kural tipi: `ASN`, `IP`, `DOMAIN` veya `COUNTRY`.             |
+| TARGET | ASN numarası, CIDR bloğu, alan adı veya ülke kodu.            |
+| VIA    | Hedef arayüz.                                                 |
+| PRI    | Öncelik değeri.                                                |
+| STATUS | Mevcut durum: `active`, `pending`, `disabled` veya `failed`.  |
 
-**Examples**
+**Örnekler**
 
 ```bash
 mergen list
@@ -150,21 +152,21 @@ ID  NAME         TYPE     TARGET              VIA   PRI  STATUS
 
 ## show
 
-Display detailed information about a single rule, including its resolved prefix list, interface binding, and current operational state.
+Tek bir kural hakkında çözümlenmiş ön ek listesi, arayüz bağlantısı ve mevcut işletme durumu dahil ayrıntılı bilgi görüntüler.
 
-**Syntax**
+**Sözdizimi**
 
 ```
-mergen show <NAME>
+mergen show <AD>
 ```
 
-**Arguments**
+**Argümanlar**
 
-| Argument | Required | Description                    |
-|----------|----------|--------------------------------|
-| `<NAME>` | Yes      | Name of the rule to inspect.   |
+| Argüman  | Zorunlu  | Açıklama                        |
+|----------|----------|---------------------------------|
+| `<AD>`   | Evet     | İncelenecek kuralın adı.       |
 
-**Examples**
+**Örnekler**
 
 ```bash
 mergen show cloudflare
@@ -196,29 +198,29 @@ IPv4 Prefixes (first 10):
 
 ## enable
 
-Activate a previously disabled rule or all rules matching a tag. Enabled rules are included in the next `mergen apply`.
+Daha önce devre dışı bırakılmış bir kuralı veya bir etikete uyan tüm kuralları aktif hale getirir. Etkinleştirilen kurallar bir sonraki `mergen apply` işlemine dahil edilir.
 
-**Syntax**
+**Sözdizimi**
 
 ```
-mergen enable <NAME>
-mergen enable --tag <TAG>
+mergen enable <AD>
+mergen enable --tag <ETİKET>
 ```
 
-**Options**
+**Seçenekler**
 
-| Option        | Description                                           |
-|---------------|-------------------------------------------------------|
-| `<NAME>`      | Name of the specific rule to enable.                  |
-| `--tag <TAG>` | Enable all rules that carry the specified tag.         |
+| Seçenek            | Açıklama                                                  |
+|--------------------|-----------------------------------------------------------|
+| `<AD>`             | Etkinleştirilecek kuralın adı.                            |
+| `--tag <ETİKET>`   | Belirtilen etiketi taşıyan tüm kuralları etkinleştirir.   |
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Enable a single rule
+# Tek bir kuralı etkinleştir
 mergen enable cloudflare
 
-# Enable all rules tagged "vpn-routed"
+# "vpn-routed" etiketli tüm kuralları etkinleştir
 mergen enable --tag vpn-routed
 ```
 
@@ -226,29 +228,29 @@ mergen enable --tag vpn-routed
 
 ## disable
 
-Deactivate a rule or all rules matching a tag. Disabled rules are excluded from routing but remain in the configuration.
+Bir kuralı veya bir etikete uyan tüm kuralları devre dışı bırakır. Devre dışı bırakılan kurallar yönlendirmeden hariç tutulur ancak yapılandırmada kalır.
 
-**Syntax**
+**Sözdizimi**
 
 ```
-mergen disable <NAME>
-mergen disable --tag <TAG>
+mergen disable <AD>
+mergen disable --tag <ETİKET>
 ```
 
-**Options**
+**Seçenekler**
 
-| Option        | Description                                           |
-|---------------|-------------------------------------------------------|
-| `<NAME>`      | Name of the specific rule to disable.                 |
-| `--tag <TAG>` | Disable all rules that carry the specified tag.        |
+| Seçenek            | Açıklama                                                       |
+|--------------------|----------------------------------------------------------------|
+| `<AD>`             | Devre dışı bırakılacak kuralın adı.                            |
+| `--tag <ETİKET>`   | Belirtilen etiketi taşıyan tüm kuralları devre dışı bırakır.  |
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Disable a single rule
+# Tek bir kuralı devre dışı bırak
 mergen disable google
 
-# Disable all rules tagged "streaming"
+# "streaming" etiketli tüm kuralları devre dışı bırak
 mergen disable --tag streaming
 ```
 
@@ -256,69 +258,69 @@ mergen disable --tag streaming
 
 ## apply
 
-Compile all enabled rules into system routing entries (`ip rule`, `ip route`, `nftables` sets) and apply them atomically. If any rule fails to apply, the entire operation is rolled back automatically.
+Etkinleştirilmiş tüm kuralları sistem yönlendirme girişlerine (`ip rule`, `ip route`, `nftables` kümeleri) derler ve atomik olarak uygular. Herhangi bir kural uygulanamaz ise tüm işlem otomatik olarak geri alınır.
 
-**Syntax**
+**Sözdizimi**
 
 ```
 mergen apply [--force] [--safe]
 ```
 
-**Options**
+**Seçenekler**
 
-| Option    | Description                                                                                               |
+| Seçenek   | Açıklama                                                                                                  |
 |-----------|-----------------------------------------------------------------------------------------------------------|
-| `--force` | Bypass prefix count limits and apply even if thresholds are exceeded.                                     |
-| `--safe`  | Enable safe mode: after applying, Mergen tests connectivity (ping). If the test fails within 60 seconds, all changes are rolled back automatically. |
+| `--force` | Ön ek sayısı sınırlarını atlar ve eşikler aşılsa bile uygular.                                            |
+| `--safe`  | Güvenli modu etkinleştirir: uygulamadan sonra Mergen bağlantı testi (ping) yapar. Test 60 saniye içinde başarısız olursa tüm değişiklikler otomatik olarak geri alınır. |
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Standard apply
+# Standart uygulama
 mergen apply
 
-# Force apply, ignoring prefix count warnings
+# Ön ek sayısı uyarılarını yok sayarak zorla uygula
 mergen apply --force
 
-# Safe apply with automatic rollback on connectivity loss
+# Bağlantı kaybı durumunda otomatik geri alma ile güvenli uygulama
 mergen apply --safe
 ```
 
-**Safe Mode Behavior**
+**Güvenli Mod Davranışı**
 
-When `--safe` is used, Mergen performs the following sequence:
+`--safe` kullanıldığında Mergen aşağıdaki sırayı izler:
 
-1. Takes a snapshot of the current routing state.
-2. Applies all pending rules.
-3. Pings the configured safe mode target (default: `8.8.8.8`).
-4. If the ping succeeds, the new state is committed.
-5. If the ping fails or no `mergen confirm` is received within 60 seconds, Mergen rolls back to the snapshot automatically.
+1. Mevcut yönlendirme durumunun bir anlık görüntüsünü alır.
+2. Bekleyen tüm kuralları uygular.
+3. Yapılandırılmış güvenli mod hedefine ping atar (varsayılan: `8.8.8.8`).
+4. Ping başarılı olursa yeni durum onaylanır.
+5. Ping başarısız olursa veya 60 saniye içinde `mergen confirm` alınmazsa Mergen otomatik olarak anlık görüntüye geri döner.
 
 ---
 
 ## flush
 
-Remove all Mergen-managed routes, `ip rule` entries, and `nftables`/`ipset` sets from the running system. Rules remain in the UCI configuration and can be re-applied with `mergen apply`.
+Çalışan sistemden Mergen tarafından yönetilen tüm rotaları, `ip rule` girişlerini ve `nftables`/`ipset` kümelerini kaldırır. Kurallar UCI yapılandırmasında kalır ve `mergen apply` ile yeniden uygulanabilir.
 
-**Syntax**
+**Sözdizimi**
 
 ```
 mergen flush [--confirm]
 ```
 
-**Options**
+**Seçenekler**
 
-| Option      | Description                                                       |
+| Seçenek     | Açıklama                                                          |
 |-------------|-------------------------------------------------------------------|
-| `--confirm` | Skip the interactive confirmation prompt. Required for scripting. |
+| `--confirm` | Etkileşimli onay istemini atlar. Betik kullanımı için gereklidir. |
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Interactive flush (prompts for confirmation)
+# Etkileşimli temizleme (onay ister)
 mergen flush
 
-# Non-interactive flush for scripts
+# Betikler için etkileşimsiz temizleme
 mergen flush --confirm
 ```
 
@@ -326,18 +328,18 @@ mergen flush --confirm
 
 ## rollback
 
-Revert to the routing state snapshot that was captured before the most recent `mergen apply`. This restores all `ip rule`, `ip route`, and `nftables` set entries to their prior state.
+En son `mergen apply` işleminden önce alınan yönlendirme durumu anlık görüntüsüne geri döner. Bu, tüm `ip rule`, `ip route` ve `nftables` küme girişlerini önceki durumlarına geri yükler.
 
-**Syntax**
+**Sözdizimi**
 
 ```
 mergen rollback
 ```
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Undo the last apply
+# Son uygulamayı geri al
 mergen rollback
 ```
 
@@ -345,20 +347,20 @@ mergen rollback
 
 ## confirm
 
-Confirm the currently applied routing state after a `mergen apply --safe` operation. This prevents the automatic rollback timer from reverting the changes.
+Bir `mergen apply --safe` işleminden sonra mevcut yönlendirme durumunu onaylar. Bu, otomatik geri alma zamanlayıcısının değişiklikleri geri almasını engeller.
 
-**Syntax**
+**Sözdizimi**
 
 ```
 mergen confirm
 ```
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Apply in safe mode, then confirm once you verify connectivity
+# Güvenli modda uygula, ardından bağlantıyı doğruladıktan sonra onayla
 mergen apply --safe
-# ... verify that SSH/web access still works ...
+# ... SSH/web erişiminin hala çalıştığını doğrulayın ...
 mergen confirm
 ```
 
@@ -366,21 +368,21 @@ mergen confirm
 
 ## status
 
-Display the current operational status of the Mergen system, including daemon state, rule counts, prefix totals, and synchronization timestamps.
+Mergen sisteminin mevcut işletme durumunu görüntüler; arka plan süreci durumu, kural sayıları, ön ek toplamları ve eşzamanlama zaman damgaları dahildir.
 
-**Syntax**
+**Sözdizimi**
 
 ```
 mergen status [--traffic]
 ```
 
-**Options**
+**Seçenekler**
 
-| Option      | Description                                                   |
-|-------------|---------------------------------------------------------------|
-| `--traffic` | Include per-rule traffic counters (bytes/packets) if available. |
+| Seçenek     | Açıklama                                                              |
+|-------------|-----------------------------------------------------------------------|
+| `--traffic` | Varsa kural başına trafik sayaçlarını (bayt/paket) dahil eder.        |
 
-**Examples**
+**Örnekler**
 
 ```bash
 mergen status
@@ -417,33 +419,33 @@ office-vpn    wan2  3201       1.8 MB
 
 ## diag
 
-Run diagnostic checks and output debug information about the routing setup. Useful for troubleshooting rule application failures, provider connectivity, and mwan3 integration issues.
+Yönlendirme yapılandırması hakkında tanılama denetimleri çalıştırır ve hata ayıklama bilgisi çıktılar. Kural uygulama hataları, sağlayıcı bağlantısı ve mwan3 entegrasyon sorunlarını gidermek için kullanışlıdır.
 
-**Syntax**
+**Sözdizimi**
 
 ```
 mergen diag [--asn <ASN>] [--mwan3]
 ```
 
-**Options**
+**Seçenekler**
 
-| Option        | Description                                                                   |
-|---------------|-------------------------------------------------------------------------------|
-| `--asn <ASN>` | Run diagnostics for a specific ASN: resolve prefixes, check route entries.    |
-| `--mwan3`     | Include mwan3-specific diagnostics (policy status, interface tracking state). |
+| Seçenek       | Açıklama                                                                          |
+|---------------|-----------------------------------------------------------------------------------|
+| `--asn <ASN>` | Belirli bir ASN için tanılama çalıştırır: ön ekleri çözümler, rota girişlerini denetler. |
+| `--mwan3`     | mwan3'e özgü tanılamaları dahil eder (politika durumu, arayüz izleme durumu).     |
 
-When invoked without options, `mergen diag` outputs a full system diagnostic report covering routing tables, nftables sets, interface states, provider health, and lock file status.
+Seçenek olmadan çağrıldığında `mergen diag`, yönlendirme tabloları, nftables kümeleri, arayüz durumları, sağlayıcı sağlığı ve kilit dosyası durumunu kapsayan tam bir sistem tanılama raporu çıktılar.
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Full system diagnostics
+# Tam sistem tanılaması
 mergen diag
 
-# Diagnose routing for a specific ASN
+# Belirli bir ASN için yönlendirme tanılaması
 mergen diag --asn 13335
 
-# Include mwan3 integration diagnostics
+# mwan3 entegrasyon tanılamasını dahil et
 mergen diag --mwan3
 ```
 
@@ -466,35 +468,35 @@ ASN Diagnostics: AS13335
 
 ## log
 
-Query and display Mergen log entries from syslog with optional filtering.
+Mergen günlük girişlerini syslog'dan isteğe bağlı filtreleme ile sorgular ve görüntüler.
 
-**Syntax**
+**Sözdizimi**
 
 ```
-mergen log [--tail <N>] [--level <LEVEL>] [--component <COMP>]
+mergen log [--tail <N>] [--level <SEVİYE>] [--component <BİLEŞEN>]
 ```
 
-**Options**
+**Seçenekler**
 
-| Option              | Description                                                                           |
-|---------------------|---------------------------------------------------------------------------------------|
-| `--tail <N>`        | Show only the last `N` log entries. Default: all available entries.                    |
-| `--level <LEVEL>`   | Filter by minimum log level: `debug`, `info`, `warning`, `error`.                     |
-| `--component <COMP>` | Filter by component name: `Core`, `Engine`, `Route`, `Resolver`, `Provider`, `Daemon`, `CLI`, `NFT`, `IPSET`, `SafeMode`, `Snapshot`. |
+| Seçenek                  | Açıklama                                                                                          |
+|--------------------------|---------------------------------------------------------------------------------------------------|
+| `--tail <N>`             | Yalnızca son `N` günlük girişini gösterir. Varsayılan: tüm mevcut girişler.                       |
+| `--level <SEVİYE>`       | Minimum günlük seviyesine göre filtreler: `debug`, `info`, `warning`, `error`.                    |
+| `--component <BİLEŞEN>`  | Bileşen adına göre filtreler: `Core`, `Engine`, `Route`, `Resolver`, `Provider`, `Daemon`, `CLI`, `NFT`, `IPSET`, `SafeMode`, `Snapshot`. |
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Show the last 20 log entries
+# Son 20 günlük girişini göster
 mergen log --tail 20
 
-# Show only errors
+# Yalnızca hataları göster
 mergen log --level error
 
-# Show resolver-related warnings and errors
+# Çözümleyici ile ilgili uyarıları ve hataları göster
 mergen log --level warning --component Resolver
 
-# Show the last 50 entries from the Route component
+# Route bileşeninden son 50 girişi göster
 mergen log --tail 50 --component Route
 ```
 
@@ -502,27 +504,27 @@ mergen log --tail 50 --component Route
 
 ## validate
 
-Validate the current UCI configuration without applying any changes. Checks for syntax errors, invalid ASN/IP values, missing interfaces, rule conflicts, and prefix limit violations.
+Herhangi bir değişiklik uygulamadan mevcut UCI yapılandırmasını doğrular. Sözdizimi hataları, geçersiz ASN/IP değerleri, eksik arayüzler, kural çakışmaları ve ön ek sınırı ihlallerini denetler.
 
-**Syntax**
+**Sözdizimi**
 
 ```
 mergen validate [--check-providers]
 ```
 
-**Options**
+**Seçenekler**
 
-| Option              | Description                                                                 |
-|---------------------|-----------------------------------------------------------------------------|
-| `--check-providers` | Also test connectivity to each enabled ASN provider (requires network access). |
+| Seçenek             | Açıklama                                                                        |
+|---------------------|---------------------------------------------------------------------------------|
+| `--check-providers` | Etkinleştirilmiş her ASN sağlayıcısına bağlantıyı da test eder (ağ erişimi gerektirir). |
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Validate configuration only
+# Yalnızca yapılandırmayı doğrula
 mergen validate
 
-# Validate configuration and test provider connectivity
+# Yapılandırmayı doğrula ve sağlayıcı bağlantısını test et
 mergen validate --check-providers
 ```
 
@@ -559,40 +561,40 @@ Result: 0 error(s), 1 warning(s)
 
 ## tag
 
-Manage tags on rules. Tags allow batch operations via `mergen enable --tag` and `mergen disable --tag`.
+Kurallar üzerindeki etiketleri yönetir. Etiketler, `mergen enable --tag` ve `mergen disable --tag` aracılığıyla toplu işlem yapılmasını sağlar.
 
-**Syntax**
+**Sözdizimi**
 
 ```
-mergen tag add <RULE> <TAG>
-mergen tag remove <RULE> <TAG>
+mergen tag add <KURAL> <ETİKET>
+mergen tag remove <KURAL> <ETİKET>
 ```
 
-**Subcommands**
+**Alt Komutlar**
 
-| Subcommand | Description                              |
-|------------|------------------------------------------|
-| `add`      | Attach a tag to the specified rule.      |
-| `remove`   | Detach a tag from the specified rule.    |
+| Alt Komut  | Açıklama                                    |
+|------------|---------------------------------------------|
+| `add`      | Belirtilen kurala bir etiket ekler.         |
+| `remove`   | Belirtilen kuraldan bir etiketi kaldırır.   |
 
-**Arguments**
+**Argümanlar**
 
-| Argument | Required | Description                         |
-|----------|----------|-------------------------------------|
-| `<RULE>` | Yes      | Name of the rule to tag or untag.   |
-| `<TAG>`  | Yes      | Tag label (alphanumeric and hyphens).|
+| Argüman    | Zorunlu  | Açıklama                                        |
+|------------|----------|-------------------------------------------------|
+| `<KURAL>`  | Evet     | Etiketlenecek veya etiketi kaldırılacak kuralın adı. |
+| `<ETİKET>` | Evet     | Etiket adı (alfanümerik ve tire).               |
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Tag the "cloudflare" rule with "cdn"
+# "cloudflare" kuralını "cdn" ile etiketle
 mergen tag add cloudflare cdn
 
-# Tag multiple rules for batch operations
+# Toplu işlemler için birden fazla kuralı etiketle
 mergen tag add cloudflare vpn-routed
 mergen tag add google vpn-routed
 
-# Remove a tag
+# Bir etiketi kaldır
 mergen tag remove google vpn-routed
 ```
 
@@ -600,27 +602,27 @@ mergen tag remove google vpn-routed
 
 ## update
 
-Refresh the cached ASN prefix lists for all enabled rules by querying the configured providers. Optionally re-apply routes with the updated prefixes.
+Yapılandırılmış sağlayıcıları sorgulayarak etkinleştirilmiş tüm kurallar için önbelleğe alınmış ASN ön ek listelerini yeniler. İsteğe bağlı olarak güncellenen ön eklerle rotaları yeniden uygular.
 
-**Syntax**
+**Sözdizimi**
 
 ```
 mergen update [--apply]
 ```
 
-**Options**
+**Seçenekler**
 
-| Option    | Description                                                   |
-|-----------|---------------------------------------------------------------|
-| `--apply` | Automatically run `mergen apply` after the prefix update completes. |
+| Seçenek   | Açıklama                                                              |
+|-----------|-----------------------------------------------------------------------|
+| `--apply` | Ön ek güncellemesi tamamlandıktan sonra otomatik olarak `mergen apply` çalıştırır. |
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Update prefix caches only
+# Yalnızca ön ek önbelleklerini güncelle
 mergen update
 
-# Update and immediately apply the new prefixes
+# Güncelle ve yeni ön ekleri hemen uygula
 mergen update --apply
 ```
 
@@ -628,27 +630,27 @@ mergen update --apply
 
 ## import
 
-Load rules from a JSON file into the UCI configuration. Existing rules with the same name are skipped unless `--replace` is specified.
+Bir JSON dosyasından kuralları UCI yapılandırmasına yükler. Aynı ada sahip mevcut kurallar, `--replace` belirtilmedikçe atlanır.
 
-**Syntax**
+**Sözdizimi**
 
 ```
-mergen import <file.json> [--replace]
+mergen import <dosya.json> [--replace]
 ```
 
-**Arguments**
+**Argümanlar**
 
-| Argument      | Required | Description                     |
-|---------------|----------|---------------------------------|
-| `<file.json>` | Yes      | Path to the JSON rules file.    |
+| Argüman        | Zorunlu  | Açıklama                          |
+|----------------|----------|-----------------------------------|
+| `<dosya.json>` | Evet     | JSON kural dosyasının yolu.       |
 
-**Options**
+**Seçenekler**
 
-| Option      | Description                                                                 |
-|-------------|-----------------------------------------------------------------------------|
-| `--replace` | Overwrite existing rules that share the same name as imported rules.         |
+| Seçenek     | Açıklama                                                                        |
+|-------------|---------------------------------------------------------------------------------|
+| `--replace` | İçe aktarılan kurallarla aynı ada sahip mevcut kuralların üzerine yazar.        |
 
-**JSON File Format**
+**JSON Dosya Biçimi**
 
 ```json
 {
@@ -675,13 +677,13 @@ mergen import <file.json> [--replace]
 }
 ```
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Import rules from a file
+# Bir dosyadan kuralları içe aktar
 mergen import /etc/mergen/rules.d/office.json
 
-# Import and overwrite existing rules with matching names
+# Eşleşen adlara sahip mevcut kuralları üzerine yazarak içe aktar
 mergen import /tmp/backup-rules.json --replace
 ```
 
@@ -689,34 +691,34 @@ mergen import /tmp/backup-rules.json --replace
 
 ## export
 
-Export the current rule configuration to a file in JSON or UCI format.
+Mevcut kural yapılandırmasını JSON veya UCI biçiminde bir dosyaya dışa aktarır.
 
-**Syntax**
+**Sözdizimi**
 
 ```
-mergen export [--format <FORMAT>] [--output <FILE>]
+mergen export [--format <BİÇİM>] [--output <DOSYA>]
 ```
 
-**Options**
+**Seçenekler**
 
-| Option              | Description                                                              |
-|---------------------|--------------------------------------------------------------------------|
-| `--format <FORMAT>` | Output format: `json` (default) or `uci`.                               |
-| `--output <FILE>`   | Write output to a file instead of stdout. Parent directory must exist.   |
+| Seçenek              | Açıklama                                                                 |
+|----------------------|--------------------------------------------------------------------------|
+| `--format <BİÇİM>`  | Çıktı biçimi: `json` (varsayılan) veya `uci`.                           |
+| `--output <DOSYA>`   | Çıktıyı stdout yerine bir dosyaya yazar. Üst dizin mevcut olmalıdır.    |
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Export as JSON to stdout
+# JSON olarak stdout'a dışa aktar
 mergen export
 
-# Export as JSON to a file
+# JSON olarak bir dosyaya dışa aktar
 mergen export --format json --output /tmp/mergen-rules.json
 
-# Export in UCI format
+# UCI biçiminde dışa aktar
 mergen export --format uci
 
-# Export UCI format to a file
+# UCI biçimini bir dosyaya dışa aktar
 mergen export --format uci --output /tmp/mergen-config.uci
 ```
 
@@ -724,33 +726,33 @@ mergen export --format uci --output /tmp/mergen-config.uci
 
 ## resolve
 
-Query the configured ASN providers and display the prefix list for a given ASN without creating or modifying any rules. Useful for previewing what prefixes an ASN would add before committing a rule.
+Yapılandırılmış ASN sağlayıcılarını sorgular ve herhangi bir kural oluşturmadan veya değiştirmeden verilen ASN için ön ek listesini görüntüler. Bir kural eklemeden önce bir ASN'nin hangi ön ekleri ekleyeceğini önizlemek için kullanışlıdır.
 
-**Syntax**
+**Sözdizimi**
 
 ```
-mergen resolve <ASN> [--provider <NAME>]
+mergen resolve <ASN> [--provider <AD>]
 ```
 
-**Arguments**
+**Argümanlar**
 
-| Argument | Required | Description                   |
+| Argüman  | Zorunlu  | Açıklama                      |
 |----------|----------|-------------------------------|
-| `<ASN>`  | Yes      | Autonomous System Number.     |
+| `<ASN>`  | Evet     | Otonom Sistem Numarası.       |
 
-**Options**
+**Seçenekler**
 
-| Option              | Description                                                            |
-|---------------------|------------------------------------------------------------------------|
-| `--provider <NAME>` | Force resolution through a specific provider instead of the priority chain. Accepted values: `ripe`, `bgptools`, `bgpview`, `maxmind`, `routeviews`, `irr`. |
+| Seçenek            | Açıklama                                                                       |
+|--------------------|--------------------------------------------------------------------------------|
+| `--provider <AD>`  | Öncelik zinciri yerine belirli bir sağlayıcı üzerinden çözümlemeyi zorlar. Kabul edilen değerler: `ripe`, `bgptools`, `bgpview`, `maxmind`, `routeviews`, `irr`. |
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Resolve using the default provider priority chain
+# Varsayılan sağlayıcı öncelik zincirini kullanarak çözümle
 mergen resolve 13335
 
-# Force resolution through a specific provider
+# Belirli bir sağlayıcı üzerinden çözümlemeyi zorla
 mergen resolve 13335 --provider bgptools
 ```
 
@@ -779,15 +781,15 @@ IPv6 (235):
 
 ## version
 
-Display the installed Mergen version, the OpenWrt release, and the active packet matching engine.
+Yüklü Mergen sürümünü, OpenWrt dağıtımını ve etkin paket eşleştirme motorunu görüntüler.
 
-**Syntax**
+**Sözdizimi**
 
 ```
 mergen version
 ```
 
-**Examples**
+**Örnekler**
 
 ```bash
 mergen version
@@ -803,66 +805,66 @@ Packet engine: nftables
 
 ## help
 
-Display general help or detailed usage information for a specific command.
+Genel yardımı veya belirli bir komut için ayrıntılı kullanım bilgisini görüntüler.
 
-**Syntax**
+**Sözdizimi**
 
 ```
-mergen help [<command>]
+mergen help [<komut>]
 ```
 
-**Arguments**
+**Argümanlar**
 
-| Argument    | Required | Description                                              |
-|-------------|----------|----------------------------------------------------------|
-| `<command>` | No       | Command name to display detailed help for. Omit for general help. |
+| Argüman     | Zorunlu  | Açıklama                                                                 |
+|-------------|----------|--------------------------------------------------------------------------|
+| `<komut>`   | Hayır    | Ayrıntılı yardım görüntülenecek komut adı. Genel yardım için atlayın.   |
 
-**Examples**
+**Örnekler**
 
 ```bash
-# Show general help with a list of all commands
+# Tüm komutların listesiyle genel yardımı göster
 mergen help
 
-# Show detailed help for the "add" command
+# "add" komutu için ayrıntılı yardımı göster
 mergen help add
 
-# Show detailed help for the "apply" command
+# "apply" komutu için ayrıntılı yardımı göster
 mergen help apply
 ```
 
 ---
 
-## Exit Codes
+## Çıkış Kodları
 
-All Mergen commands return standard exit codes:
+Tüm Mergen komutları standart çıkış kodları döndürür:
 
-| Code | Meaning                                                  |
-|------|----------------------------------------------------------|
-| `0`  | Success.                                                 |
-| `1`  | General error (invalid arguments, missing dependencies). |
-| `2`  | Configuration error (invalid UCI config, missing rule).  |
-| `3`  | Provider error (all providers failed, timeout).          |
-| `4`  | Route application error (kernel rejected a route).       |
-| `5`  | Rollback triggered (safe mode connectivity test failed). |
-
----
-
-## Environment
-
-| Path                       | Description                              |
-|----------------------------|------------------------------------------|
-| `/etc/config/mergen`       | UCI configuration file.                  |
-| `/etc/mergen/providers/`   | ASN provider plugin scripts.             |
-| `/etc/mergen/rules.d/`     | Directory for imported JSON rule files.  |
-| `/tmp/mergen/cache/`       | Cached prefix lists (ephemeral).         |
-| `/tmp/mergen/status.json`  | Watchdog runtime status.                 |
-| `/var/lock/mergen.lock`    | Lock file for CLI/watchdog coordination. |
-| `/usr/lib/mergen/`         | Core library scripts.                    |
+| Kod  | Anlam                                                              |
+|------|--------------------------------------------------------------------|
+| `0`  | Başarılı.                                                          |
+| `1`  | Genel hata (geçersiz argümanlar, eksik bağımlılıklar).            |
+| `2`  | Yapılandırma hatası (geçersiz UCI yapılandırması, eksik kural).    |
+| `3`  | Sağlayıcı hatası (tüm sağlayıcılar başarısız oldu, zaman aşımı). |
+| `4`  | Rota uygulama hatası (çekirdek bir rotayı reddetti).               |
+| `5`  | Geri alma tetiklendi (güvenli mod bağlantı testi başarısız oldu).  |
 
 ---
 
-## See Also
+## Ortam
 
-- `mergen-watchdog` -- background daemon for hotplug events, periodic updates, and safe mode monitoring
-- OpenWrt UCI documentation: <https://openwrt.org/docs/guide-user/base-system/uci>
-- mwan3 multi-WAN manager: <https://openwrt.org/docs/guide-user/network/wan/multiwan/mwan3>
+| Yol                          | Açıklama                                     |
+|------------------------------|----------------------------------------------|
+| `/etc/config/mergen`         | UCI yapılandırma dosyası.                    |
+| `/etc/mergen/providers/`     | ASN sağlayıcı eklenti betikleri.             |
+| `/etc/mergen/rules.d/`       | İçe aktarılan JSON kural dosyaları dizini.   |
+| `/tmp/mergen/cache/`         | Önbelleğe alınmış ön ek listeleri (geçici).  |
+| `/tmp/mergen/status.json`    | Bekçi sürecinin çalışma zamanı durumu.       |
+| `/var/lock/mergen.lock`      | CLI/bekçi süreci koordinasyonu kilit dosyası. |
+| `/usr/lib/mergen/`           | Çekirdek kütüphane betikleri.                |
+
+---
+
+## Ayrıca Bakınız
+
+- `mergen-watchdog` -- hotplug olayları, periyodik güncellemeler ve güvenli mod izlemesi için arka plan süreci
+- OpenWrt UCI belgeleri: <https://openwrt.org/docs/guide-user/base-system/uci>
+- mwan3 çoklu WAN yöneticisi: <https://openwrt.org/docs/guide-user/network/wan/multiwan/mwan3>

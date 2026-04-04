@@ -1,150 +1,152 @@
-# Mergen LuCI Web Interface Guide
+# Mergen LuCI Web Arayüzü Rehberi
 
-This guide covers the LuCI web interface for **Mergen**, an ASN/IP-based policy routing tool for OpenWrt. All pages are accessible under **Services > Mergen** in the LuCI administration panel.
+[English](luci-guide.en.md)
 
----
-
-## Table of Contents
-
-1. [Overview Page](#1-overview-page)
-2. [Rules Page](#2-rules-page)
-3. [ASN Browser Page](#3-asn-browser-page)
-4. [Providers Page](#4-providers-page)
-5. [Interfaces Page](#5-interfaces-page)
-6. [Logs Page](#6-logs-page)
-7. [Advanced Settings Page](#7-advanced-settings-page)
+Bu rehber, OpenWrt için ASN/IP tabanlı politika yönlendirme aracı olan **Mergen**'in LuCI web arayüzünü kapsar. Tüm sayfalar LuCI yönetim panelinde **Services > Mergen** altından erişilebilir.
 
 ---
 
-## 1. Overview Page
+## İçindekiler
 
-**Navigation:** Services > Mergen > Overview
-
-The Overview page provides a real-time dashboard of your Mergen installation. It is the default landing page when you open the Mergen interface.
-
-### Status Cards
-
-Five status cards are displayed across the top of the page:
-
-| Card             | Description                                                                 |
-|:-----------------|:----------------------------------------------------------------------------|
-| Daemon Status    | Shows whether the Mergen daemon is **Running**, **Stopped**, or in **Error** state, indicated by a color-coded badge (green, gray, or red). |
-| Total Rules      | The total number of configured rules, with a breakdown of active and disabled counts beneath. |
-| Total Prefixes   | The number of IPv4 prefixes currently loaded, with an IPv4/IPv6 split shown below. |
-| Last Sync        | Timestamp of the most recent prefix data synchronization, with a relative time indicator (e.g., "2 hours ago"). |
-| Next Sync        | The projected time of the next automatic prefix update, calculated from the configured update interval. |
-
-### Active Rules Table
-
-Below the status cards, a table lists every configured rule with the following columns:
-
-| Column    | Description                                                                             |
-|:----------|:----------------------------------------------------------------------------------------|
-| Rule Name | Clickable name that navigates to the Rules page for editing.                            |
-| Rule Type | The rule category displayed in uppercase: ASN, IP, DOMAIN, or COUNTRY.                 |
-| Target    | The ASN numbers, IP/CIDR blocks, domains, or country codes targeted by the rule. Long values are truncated to 40 characters. |
-| Interface | The outbound interface for matched traffic. If a fallback interface is configured, it appears in parentheses beside the primary. |
-| Priority  | The numeric priority value (lower numbers are processed first).                         |
-| Traffic   | Live traffic counters showing packet count and byte volume (e.g., "1284 pkt / 3.2 MB"). Refreshes automatically every 15 seconds. |
-| Status    | Color-coded badge: **active** (green), **disabled** (gray), or **failover** (red) when the primary interface is down and traffic has switched to the fallback. |
-
-### Quick Action Buttons
-
-Three buttons appear between the status cards and the rules table:
-
-- **Apply All** -- Applies all current rules to the routing table immediately. Use this after making configuration changes on any page.
-- **Update Prefixes** -- Triggers an on-demand prefix data refresh from all configured providers, then applies the updated routes.
-- **Restart Daemon** -- Stops and restarts the Mergen init script. A confirmation prompt appears before execution.
-
-### Daemon Status Details
-
-A collapsible section labeled "Daemon Status (details)" contains the raw output of the `mergen status` command. Click the summary header to expand or collapse it.
-
-### Recent Operations Log
-
-The bottom of the page shows the 10 most recent log entries with timestamps. A "View all logs" link navigates to the full Logs page.
-
-### Auto-Refresh
-
-The Overview page automatically refreshes daemon status every 30 seconds and traffic statistics every 15 seconds without requiring a page reload.
+1. [Genel Bakış Sayfası](#1-genel-bakış-sayfası)
+2. [Kurallar Sayfası](#2-kurallar-sayfası)
+3. [ASN Tarayıcı Sayfası](#3-asn-tarayıcı-sayfası)
+4. [Sağlayıcılar Sayfası](#4-sağlayıcılar-sayfası)
+5. [Arayüzler Sayfası](#5-arayüzler-sayfası)
+6. [Kayıtlar Sayfası](#6-kayıtlar-sayfası)
+7. [Gelişmiş Ayarlar Sayfası](#7-gelişmiş-ayarlar-sayfası)
 
 ---
 
-## 2. Rules Page
+## 1. Genel Bakış Sayfası
 
-**Navigation:** Services > Mergen > Rules
+**Gezinme:** Services > Mergen > Overview
 
-The Rules page is where you create, edit, reorder, and remove routing rules. It uses a UCI-bound table form, meaning changes are saved to the OpenWrt configuration system when you click **Save & Apply**.
+Genel Bakış sayfası, Mergen kurulumunuzun gerçek zamanlı panosunu sunar. Mergen arayüzünü açtığınızda varsayılan açılış sayfasıdır.
 
-### Summary Cards
+### Durum Kartları
 
-Two cards at the top display:
+Sayfanın üst kısmında beş durum kartı görüntülenir:
 
-- **Total Rules** -- Number of rule sections in the configuration.
-- **Active Rules** -- Number of rules with the enabled flag set.
+| Kart              | Açıklama                                                                      |
+|:------------------|:------------------------------------------------------------------------------|
+| Servis Durumu     | Mergen servisinin **Çalışıyor**, **Durduruldu** veya **Hata** durumunda olduğunu renk kodlu rozet ile gösterir (yeşil, gri veya kırmızı). |
+| Toplam Kurallar   | Yapılandırılmış kuralların toplam sayısı; altında aktif ve devre dışı sayıları gösterilir. |
+| Toplam Önekler    | Yüklü IPv4 öneklerinin sayısı; altında IPv4/IPv6 dağılımı gösterilir.        |
+| Son Eşitleme      | En son önek verisi eşitleme zaman damgası; görece zaman göstergesi ile birlikte (örn. "2 saat önce"). |
+| Sonraki Eşitleme  | Yapılandırılmış güncelleme aralığından hesaplanan bir sonraki otomatik önek güncellemesinin tahmini zamanı. |
 
-### Adding a New Rule
+### Aktif Kurallar Tablosu
 
-1. Scroll to the bottom of the rules table and click the **Add** button.
-2. Fill in the fields described below.
-3. Click **Save & Apply** to persist the rule.
+Durum kartlarının altında, yapılandırılmış her kuralı listeleyen bir tablo yer alır:
 
-### Rule Fields
+| Sütun      | Açıklama                                                                              |
+|:-----------|:--------------------------------------------------------------------------------------|
+| Kural Adı  | Düzenleme için Kurallar sayfasına yönlendiren tıklanabilir ad.                        |
+| Kural Tipi | Büyük harfle gösterilen kural kategorisi: ASN, IP, DOMAIN veya COUNTRY.               |
+| Hedef      | Kuralın hedeflediği ASN numaraları, IP/CIDR blokları, alan adları veya ülke kodları. Uzun değerler 40 karaktere kırpılır. |
+| Arayüz     | Eşleşen trafik için giden arayüz. Yedek arayüz yapılandırılmışsa birincil yanında parantez içinde görünür. |
+| Öncelik    | Sayısal öncelik değeri (düşük sayılar önce işlenir).                                  |
+| Trafik     | Paket sayısı ve bayt hacmini gösteren canlı trafik sayaçları (örn. "1284 pkt / 3.2 MB"). Her 15 saniyede otomatik yenilenir. |
+| Durum      | Renk kodlu rozet: **aktif** (yeşil), **devre dışı** (gri) veya **yedekleme** (kırmızı) — birincil arayüz çöktüğünde ve trafik yedeğe geçtiğinde. |
 
-| Field              | Description                                                                                                        |
+### Hızlı İşlem Düğmeleri
+
+Durum kartları ile kurallar tablosu arasında üç düğme bulunur:
+
+- **Apply All** -- Tüm geçerli kuralları yönlendirme tablosuna anında uygular. Herhangi bir sayfada yapılandırma değişikliği yaptıktan sonra kullanın.
+- **Update Prefixes** -- Yapılandırılmış tüm sağlayıcılardan isteğe bağlı önek verisi yenilemesi başlatır, ardından güncellenen rotaları uygular.
+- **Restart Daemon** -- Mergen init betiğini durdurur ve yeniden başlatır. Çalıştırma öncesi onay istemi görüntülenir.
+
+### Servis Durumu Ayrıntıları
+
+"Daemon Status (details)" etiketli daraltılabilir bir bölüm, `mergen status` komutunun ham çıktısını içerir. Genişletmek veya daraltmak için özet başlığına tıklayın.
+
+### Son İşlemler Günlüğü
+
+Sayfanın alt kısmında zaman damgalı en son 10 günlük girişi gösterilir. "View all logs" bağlantısı tam Kayıtlar sayfasına yönlendirir.
+
+### Otomatik Yenileme
+
+Genel Bakış sayfası, sayfa yeniden yüklemesi gerektirmeden servis durumunu her 30 saniyede, trafik istatistiklerini ise her 15 saniyede otomatik olarak yeniler.
+
+---
+
+## 2. Kurallar Sayfası
+
+**Gezinme:** Services > Mergen > Rules
+
+Kurallar sayfası, yönlendirme kurallarını oluşturduğunuz, düzenlediğiniz, yeniden sıraladığınız ve kaldırdığınız yerdir. UCI'ye bağlı tablo formu kullanır; bu, **Save & Apply** tıkladığınızda değişikliklerin OpenWrt yapılandırma sistemine kaydedildiği anlamına gelir.
+
+### Özet Kartları
+
+Üstteki iki kart şunları gösterir:
+
+- **Total Rules** -- Yapılandırmadaki kural bölümlerinin sayısı.
+- **Active Rules** -- Etkin bayrağı ayarlanmış kuralların sayısı.
+
+### Yeni Kural Ekleme
+
+1. Kurallar tablosunun altına kaydırın ve **Add** düğmesine tıklayın.
+2. Aşağıda açıklanan alanları doldurun.
+3. Kuralı kaydetmek için **Save & Apply** tıklayın.
+
+### Kural Alanları
+
+| Alan               | Açıklama                                                                                                           |
 |:-------------------|:-------------------------------------------------------------------------------------------------------------------|
-| Enabled            | Toggle checkbox. Disabled rules remain in the configuration but are not applied to the routing table.              |
-| Rule Name          | A unique identifier for the rule. Only letters, digits, dashes, and underscores are allowed. Maximum 32 characters. |
-| Rule Type          | Select the target type. **ASN** routes traffic destined for IP prefixes announced by the specified autonomous systems. **IP/CIDR** routes traffic to explicitly listed IP ranges. |
-| ASN                | Visible when Rule Type is ASN. Enter one or more ASN numbers separated by commas or spaces (e.g., `13335, 32934`). |
-| IP/CIDR            | Visible when Rule Type is IP/CIDR. Enter one or more CIDR blocks separated by commas or spaces (e.g., `10.0.0.0/8, 172.16.0.0/12`). Both IPv4 and IPv6 CIDR notation are accepted. |
-| Interface          | The outbound network interface through which matched traffic will be routed. The dropdown lists both physical devices and logical UCI interfaces. |
-| Priority           | Numeric priority value (1--32000). Lower values are processed first. Default is 100.                               |
-| Fallback Interface | Optional. If the primary interface goes down, traffic fails over to this interface automatically. Select "-- None --" to disable fallback. |
-| Tags               | Optional comma-separated labels for organizational purposes (e.g., `vpn, office, streaming`).                      |
+| Enabled            | Açma/kapama onay kutusu. Devre dışı kurallar yapılandırmada kalır ancak yönlendirme tablosuna uygulanmaz.          |
+| Rule Name          | Kural için benzersiz tanımlayıcı. Yalnızca harf, rakam, tire ve alt çizgi kullanılabilir. En fazla 32 karakter.    |
+| Rule Type          | Hedef tipini seçin. **ASN** belirtilen otonom sistemlerin duyurduğu IP öneklerine yönelik trafiği yönlendirir. **IP/CIDR** açıkça listelenen IP aralıklarına trafiği yönlendirir. |
+| ASN                | Kural Tipi ASN olduğunda görünür. Virgül veya boşlukla ayrılmış bir veya daha fazla ASN numarası girin (örn. `13335, 32934`). |
+| IP/CIDR            | Kural Tipi IP/CIDR olduğunda görünür. Virgül veya boşlukla ayrılmış bir veya daha fazla CIDR bloğu girin (örn. `10.0.0.0/8, 172.16.0.0/12`). Hem IPv4 hem IPv6 CIDR gösterimi kabul edilir. |
+| Interface          | Eşleşen trafiğin yönlendirileceği giden ağ arayüzü. Açılır liste hem fiziksel cihazları hem mantıksal UCI arayüzlerini gösterir. |
+| Priority           | Sayısal öncelik değeri (1--32000). Düşük değerler önce işlenir. Varsayılan 100'dür.                                |
+| Fallback Interface | İsteğe bağlı. Birincil arayüz çökerse trafik otomatik olarak bu arayüze yönlendirilir. Yedeklemeyi devre dışı bırakmak için "-- None --" seçin. |
+| Tags               | Organizasyon amaçlı isteğe bağlı virgülle ayrılmış etiketler (örn. `vpn, office, streaming`).                     |
 
-### Editing a Rule
+### Kural Düzenleme
 
-All fields in the table are directly editable. Modify any value and click **Save & Apply** at the bottom of the page.
+Tablodaki tüm alanlar doğrudan düzenlenebilir. Herhangi bir değeri değiştirin ve sayfanın altındaki **Save & Apply** düğmesine tıklayın.
 
-When you change the Rule Type dropdown, the row briefly highlights in yellow to signal that the conditional fields (ASN vs. IP/CIDR) have changed.
+Kural Tipi açılır listesini değiştirdiğinizde, koşullu alanların (ASN ve IP/CIDR) değiştiğini belirtmek için satır kısaca sarı renkte vurgulanır.
 
-### Removing a Rule
+### Kural Kaldırma
 
-Click the **Delete** button on the right side of any rule row. A confirmation dialog appears before the rule is removed.
+Herhangi bir kural satırının sağ tarafındaki **Delete** düğmesine tıklayın. Kural kaldırılmadan önce bir onay iletişim kutusu görüntülenir.
 
-### Drag-and-Drop Sorting
+### Sürükle-Bırak Sıralama
 
-Rules can be reordered by dragging rows within the table. Grab any row and drag it above or below another row. When you drop, priorities are automatically recalculated in increments of 10 starting from 100 and saved to the backend immediately.
+Kurallar, tablo içinde satırları sürükleyerek yeniden sıralanabilir. Herhangi bir satırı tutun ve başka bir satırın üstüne veya altına sürükleyin. Bıraktığınızda öncelikler 100'den başlayarak 10'ar artışlarla otomatik olarak yeniden hesaplanır ve hemen arka uca kaydedilir.
 
-Visual indicators (top or bottom border highlights) show the drop position while dragging.
+Sürükleme sırasında bırakma konumunu gösteren görsel göstergeler (üst veya alt kenarlık vurguları) görünür.
 
-### Cloning a Rule
+### Kural Kopyalama
 
-Each rule row has a **Clone** button in the actions column. Click it and enter a name for the copy. The new rule inherits all settings from the source rule (type, ASN/IP targets, interface, priority, tags) with the enabled flag preserved. The cloned rule appears after a page reload.
+Her kural satırının işlemler sütununda bir **Clone** düğmesi bulunur. Tıklayın ve kopya için bir ad girin. Yeni kural, kaynak kuralın tüm ayarlarını (tip, ASN/IP hedefleri, arayüz, öncelik, etiketler) devralır ve etkin bayrağı korunur. Kopyalanan kural sayfa yeniden yüklendikten sonra görünür.
 
-### Bulk Operations
+### Toplu İşlemler
 
-To operate on multiple rules at once:
+Aynı anda birden fazla kural üzerinde işlem yapmak için:
 
-1. Use the checkboxes in the leftmost column to select rules. The "select all" checkbox in the header toggles all rows.
-2. When one or more rules are selected, a bulk toolbar appears showing the count of selected rules and the following buttons:
+1. Kuralları seçmek için en soldaki sütundaki onay kutularını kullanın. Başlıktaki "tümünü seç" onay kutusu tüm satırları değiştirir.
+2. Bir veya daha fazla kural seçildiğinde, seçili kural sayısını ve aşağıdaki düğmeleri gösteren bir toplu araç çubuğu görünür:
 
-| Button          | Action                                                      |
-|:----------------|:------------------------------------------------------------|
-| Enable          | Sets the enabled flag on all selected rules.                |
-| Disable         | Clears the enabled flag on all selected rules.              |
-| Delete          | Removes all selected rules after a confirmation prompt.     |
-| Export Selected | Downloads a JSON file containing only the selected rules.   |
+| Düğme           | İşlem                                                         |
+|:----------------|:--------------------------------------------------------------|
+| Enable          | Seçili tüm kurallarda etkin bayrağını ayarlar.                |
+| Disable         | Seçili tüm kurallarda etkin bayrağını temizler.               |
+| Delete          | Onay isteminden sonra seçili tüm kuralları kaldırır.          |
+| Export Selected | Yalnızca seçili kuralları içeren bir JSON dosyası indirir.    |
 
-### JSON Export
+### JSON Dışa Aktarma
 
-Two export options are available:
+İki dışa aktarma seçeneği mevcuttur:
 
-- **Export JSON** button (top toolbar) -- Downloads all rules as a `mergen-rules.json` file.
-- **Export Selected** button (bulk toolbar) -- Downloads only the checked rules.
+- **Export JSON** düğmesi (üst araç çubuğu) -- Tüm kuralları `mergen-rules.json` dosyası olarak indirir.
+- **Export Selected** düğmesi (toplu araç çubuğu) -- Yalnızca işaretli kuralları indirir.
 
-The exported JSON format is:
+Dışa aktarılan JSON formatı:
 
 ```json
 {
@@ -161,294 +163,294 @@ The exported JSON format is:
 }
 ```
 
-### Apply All
+### Tümünü Uygula
 
-The **Apply All** button at the top of the Rules page triggers an immediate application of all rules to the routing table, equivalent to running `mergen apply` from the command line.
-
----
-
-## 3. ASN Browser Page
-
-**Navigation:** Services > Mergen > ASN Browser
-
-The ASN Browser lets you look up autonomous system information, inspect announced prefixes, compare multiple ASNs side by side, and create routing rules directly from the browser results.
-
-### Searching for an ASN
-
-1. Enter an ASN number in the search field (e.g., `13335` or `AS13335`). The "AS" prefix is stripped automatically.
-2. Click **Search** or press Enter.
-3. For numeric ASN inputs of three or more digits, the search fires automatically after 300 milliseconds of inactivity.
-
-While the query is processing, a "Resolving..." indicator appears. If the ASN cannot be found or the provider fails, an error message is displayed below the search bar.
-
-### ASN Detail Panel
-
-After a successful search, four information cards appear:
-
-| Card          | Content                                            |
-|:--------------|:---------------------------------------------------|
-| ASN           | The ASN number prefixed with "AS" (e.g., AS13335). |
-| Provider      | The data provider that resolved the query.         |
-| IPv4 Prefixes | Count of IPv4 prefixes announced by this ASN.      |
-| IPv6 Prefixes | Count of IPv6 prefixes announced by this ASN.      |
-
-### Prefix Table
-
-Below the cards, a paginated table lists all announced prefixes with three columns: index number, prefix (in CIDR notation), and type (IPv4 or IPv6).
-
-**Filtering:** Use the radio buttons above the table to show All, IPv4 only, or IPv6 only prefixes.
-
-**Pagination:** The table shows 50 prefixes per page. Use the Prev/Next buttons and the page indicator to navigate. The range indicator (e.g., "1-50 / 328") shows your current position.
-
-### Quick-Add Rule
-
-To create a routing rule for the currently viewed ASN without leaving the browser:
-
-1. Enter a rule name in the "Rule Name" field. A default name is suggested as `asn-<number>` (e.g., `asn-13335`).
-2. Select the target interface from the dropdown.
-3. Click **Add Rule**.
-
-The rule is created immediately in the UCI configuration as an ASN-type rule with priority 100 and enabled status. A success message confirms the creation.
-
-### Comparing ASNs
-
-You can compare up to four ASNs side by side:
-
-1. Search for the first ASN and click the **Compare** button to add it to the comparison set.
-2. Search for another ASN and click **Compare** again.
-3. Repeat for up to four ASNs total.
-
-The comparison panel appears below the search results and displays a card for each ASN showing its provider, IPv4 count, and IPv6 count. Each card has a remove button (X) to exclude it from the comparison.
-
-When two or more ASNs are in the comparison, Mergen automatically calculates **common prefixes** -- IP ranges announced by all compared ASNs. These are listed in a separate section below the comparison cards. If no common prefixes exist, the panel states so explicitly.
-
-Click **Clear Comparison** to reset the comparison set.
+Kurallar sayfasının üstündeki **Apply All** düğmesi, tüm kuralların yönlendirme tablosuna anında uygulanmasını tetikler; komut satırından `mergen apply` çalıştırmaya eşdeğerdir.
 
 ---
 
-## 4. Providers Page
+## 3. ASN Tarayıcı Sayfası
 
-**Navigation:** Services > Mergen > Providers
+**Gezinme:** Services > Mergen > ASN Browser
 
-The Providers page configures the data sources that Mergen uses to resolve ASN numbers into IP prefix lists. It also manages fallback strategy and cache settings.
+ASN Tarayıcı, otonom sistem bilgilerini aramanızı, duyurulan önekleri incelemenizi, birden fazla ASN'yi yan yana karşılaştırmanızı ve tarayıcı sonuçlarından doğrudan yönlendirme kuralları oluşturmanızı sağlar.
 
-### Provider Table
+### ASN Arama
 
-The provider table is a UCI-bound form where each row represents a configured data provider. Available columns:
+1. Arama alanına bir ASN numarası girin (örn. `13335` veya `AS13335`). "AS" öneki otomatik olarak kaldırılır.
+2. **Search** düğmesine tıklayın veya Enter tuşuna basın.
+3. Üç veya daha fazla basamaklı sayısal ASN girişlerinde, 300 milisaniye hareketsizlikten sonra arama otomatik olarak başlatılır.
 
-| Column       | Description                                                                                  |
+Sorgu işlenirken "Resolving..." göstergesi görünür. ASN bulunamazsa veya sağlayıcı başarısız olursa arama çubuğunun altında bir hata mesajı görüntülenir.
+
+### ASN Ayrıntı Paneli
+
+Başarılı bir aramadan sonra dört bilgi kartı görünür:
+
+| Kart          | İçerik                                                 |
+|:--------------|:-------------------------------------------------------|
+| ASN           | "AS" önekli ASN numarası (örn. AS13335).               |
+| Sağlayıcı    | Sorguyu çözümleyen veri sağlayıcısı.                   |
+| IPv4 Önekleri | Bu ASN tarafından duyurulan IPv4 öneklerinin sayısı.   |
+| IPv6 Önekleri | Bu ASN tarafından duyurulan IPv6 öneklerinin sayısı.   |
+
+### Önek Tablosu
+
+Kartların altında, duyurulan tüm önekleri üç sütunla listeleyen sayfalandırılmış bir tablo bulunur: sıra numarası, önek (CIDR gösteriminde) ve tip (IPv4 veya IPv6).
+
+**Filtreleme:** Tablonun üstündeki radyo düğmelerini kullanarak Tümü, Yalnızca IPv4 veya Yalnızca IPv6 öneklerini gösterin.
+
+**Sayfalandırma:** Tablo sayfa başına 50 önek gösterir. Gezinmek için Önceki/Sonraki düğmelerini ve sayfa göstergesini kullanın. Aralık göstergesi (örn. "1-50 / 328") mevcut konumunuzu gösterir.
+
+### Hızlı Kural Ekleme
+
+Tarayıcıdan ayrılmadan görüntülenen ASN için bir yönlendirme kuralı oluşturmak için:
+
+1. "Rule Name" alanına bir kural adı girin. Varsayılan ad `asn-<numara>` olarak önerilir (örn. `asn-13335`).
+2. Açılır listeden hedef arayüzü seçin.
+3. **Add Rule** düğmesine tıklayın.
+
+Kural, UCI yapılandırmasında öncelik 100 ve etkin durumda bir ASN tipi kural olarak anında oluşturulur. Bir başarı mesajı oluşturmayı onaylar.
+
+### ASN Karşılaştırma
+
+En fazla dört ASN'yi yan yana karşılaştırabilirsiniz:
+
+1. İlk ASN'yi arayın ve karşılaştırma setine eklemek için **Compare** düğmesine tıklayın.
+2. Başka bir ASN arayın ve tekrar **Compare** tıklayın.
+3. Toplam dört ASN'ye kadar tekrarlayın.
+
+Karşılaştırma paneli arama sonuçlarının altında görünür ve her ASN için sağlayıcısını, IPv4 sayısını ve IPv6 sayısını gösteren bir kart görüntüler. Her kartta karşılaştırmadan çıkarmak için bir kaldır düğmesi (X) bulunur.
+
+Karşılaştırmada iki veya daha fazla ASN olduğunda, Mergen otomatik olarak **ortak önekleri** hesaplar -- karşılaştırılan tüm ASN'ler tarafından duyurulan IP aralıkları. Bunlar karşılaştırma kartlarının altında ayrı bir bölümde listelenir. Ortak önek yoksa panel bunu açıkça belirtir.
+
+Karşılaştırma setini sıfırlamak için **Clear Comparison** düğmesine tıklayın.
+
+---
+
+## 4. Sağlayıcılar Sayfası
+
+**Gezinme:** Services > Mergen > Providers
+
+Sağlayıcılar sayfası, Mergen'in ASN numaralarını IP önek listelerine çözümlemek için kullandığı veri kaynaklarını yapılandırır. Ayrıca geri dönüş stratejisi ve önbellek ayarlarını yönetir.
+
+### Sağlayıcı Tablosu
+
+Sağlayıcı tablosu, her satırın yapılandırılmış bir veri sağlayıcısını temsil ettiği UCI'ye bağlı bir formdur. Mevcut sütunlar:
+
+| Sütun        | Açıklama                                                                                     |
 |:-------------|:---------------------------------------------------------------------------------------------|
-| Enabled      | Toggle checkbox to enable or disable this provider.                                          |
-| Priority     | Numeric priority (lower values are tried first). Default is 10.                              |
-| API URL      | The HTTPS endpoint for this provider's API. Must begin with `https://`. Leave blank for providers that use other protocols (e.g., whois). |
-| Timeout      | Maximum seconds to wait for a response (1--120). Default is 30.                              |
-| Rate Limit   | Maximum requests per minute. Set to 0 for unlimited.                                         |
-| Whois Server | For IRR/RADB-type providers, the whois server hostname (e.g., `whois.radb.net`).             |
-| DB Path      | For local database providers like MaxMind, the filesystem path to the database file.         |
-| Test         | Per-provider test button (see below).                                                        |
+| Enabled      | Sağlayıcıyı etkinleştirmek veya devre dışı bırakmak için açma/kapama onay kutusu.           |
+| Priority     | Sayısal öncelik (düşük değerler önce denenir). Varsayılan 10'dur.                            |
+| API URL      | Sağlayıcının API'si için HTTPS uç noktası. `https://` ile başlamalıdır. Diğer protokolleri kullanan sağlayıcılar için boş bırakın (örn. whois). |
+| Timeout      | Yanıt için beklenecek maksimum saniye (1--120). Varsayılan 30'dur.                           |
+| Rate Limit   | Dakikadaki maksimum istek sayısı. Sınırsız için 0 ayarlayın.                                |
+| Whois Server | IRR/RADB tipi sağlayıcılar için whois sunucu adı (örn. `whois.radb.net`).                   |
+| DB Path      | MaxMind gibi yerel veritabanı sağlayıcıları için veritabanı dosyasının dosya sistemi yolu.   |
+| Test         | Sağlayıcıya özel test düğmesi (aşağıya bakın).                                              |
 
-Use the **Add** button at the bottom to create a new provider, and the **Delete** button on any row to remove one.
+Yeni sağlayıcı oluşturmak için alttaki **Add** düğmesini, bir sağlayıcıyı kaldırmak için ilgili satırdaki **Delete** düğmesini kullanın.
 
-Providers are sortable; you can reorder them to control the fallback sequence.
+Sağlayıcılar sıralanabilir; geri dönüş sırasını kontrol etmek için yeniden sıralayabilirsiniz.
 
-Click **Save & Apply** to persist changes.
+Değişiklikleri kaydetmek için **Save & Apply** tıklayın.
 
-### General Provider Settings
+### Genel Sağlayıcı Ayarları
 
-Below the provider table, the "General Provider Settings" section contains two options:
+Sağlayıcı tablosunun altında "General Provider Settings" bölümü iki seçenek içerir:
 
-| Setting           | Description                                                                                           |
-|:------------------|:------------------------------------------------------------------------------------------------------|
-| Fallback Strategy | Controls how providers are consulted when the primary fails. **Sequential**: try each provider in priority order. **Parallel**: query all providers simultaneously and use the first response. **Cache Only**: serve only from local cache, never contact providers. |
-| Cache TTL         | Time-to-live for cached prefix data in seconds. Default is 86400 (24 hours). After this period, data is re-fetched from providers on the next update cycle. |
+| Ayar              | Açıklama                                                                                          |
+|:------------------|:--------------------------------------------------------------------------------------------------|
+| Fallback Strategy | Birincil başarısız olduğunda sağlayıcıların nasıl sorgulanacağını kontrol eder. **Sequential**: her sağlayıcıyı öncelik sırasına göre dener. **Parallel**: tüm sağlayıcıları aynı anda sorgular ve ilk yanıtı kullanır. **Cache Only**: yalnızca yerel önbellekten sunar, sağlayıcılarla asla iletişim kurmaz. |
+| Cache TTL         | Önbelleğe alınmış önek verisi için saniye cinsinden yaşam süresi. Varsayılan 86400'dür (24 saat). Bu süre geçtikten sonra veriler bir sonraki güncelleme döngüsünde sağlayıcılardan yeniden alınır. |
 
-### Provider Maintenance
+### Sağlayıcı Bakımı
 
-The bottom section of the page offers maintenance operations:
+Sayfanın alt bölümü bakım işlemleri sunar:
 
-- **Test All Providers** -- Runs a validation check against all configured providers by resolving a known ASN (AS13335/Cloudflare) through each one. Results appear in a log panel below the buttons.
-- **Clear All Cache** -- Deletes all cached prefix data. A confirmation dialog appears first. After clearing, prefixes will be re-fetched from providers on the next update.
+- **Test All Providers** -- Bilinen bir ASN'yi (AS13335/Cloudflare) her sağlayıcı üzerinden çözümleyerek tüm yapılandırılmış sağlayıcılara karşı doğrulama kontrolü çalıştırır. Sonuçlar düğmelerin altındaki günlük panelinde görünür.
+- **Clear All Cache** -- Tüm önbelleğe alınmış önek verilerini siler. Önce bir onay iletişim kutusu görüntülenir. Temizlemeden sonra önekler bir sonraki güncellemede sağlayıcılardan yeniden alınır.
 
-### Per-Provider Test
+### Sağlayıcı Bazında Test
 
-Each row in the provider table has an individual **Test** button. Clicking it tests that specific provider by attempting an ASN resolution. The button temporarily changes to show the result:
+Sağlayıcı tablosundaki her satırda ayrı bir **Test** düğmesi bulunur. Tıklamak, bir ASN çözümlemesi deneyerek o sağlayıcıyı test eder. Düğme geçici olarak sonucu gösterecek şekilde değişir:
 
-- **OK** (green) -- The provider responded successfully and returned prefix data.
-- **FAIL** (red) -- The provider did not return valid data.
+- **OK** (yeşil) -- Sağlayıcı başarıyla yanıt verdi ve önek verisi döndürdü.
+- **FAIL** (kırmızı) -- Sağlayıcı geçerli veri döndürmedi.
 
-The button reverts to its default state after 5 seconds.
+Düğme 5 saniye sonra varsayılan durumuna geri döner.
 
 ---
 
-## 5. Interfaces Page
+## 5. Arayüzler Sayfası
 
-**Navigation:** Services > Mergen > Interfaces
+**Gezinme:** Services > Mergen > Interfaces
 
-The Interfaces page shows all network interfaces available on the system along with their relevance to Mergen routing.
+Arayüzler sayfası, sistemdeki tüm ağ arayüzlerini Mergen yönlendirmesiyle ilişkileriyle birlikte gösterir.
 
-### Interface Status Table
+### Arayüz Durumu Tablosu
 
-| Column       | Description                                                                                |
+| Sütun        | Açıklama                                                                                   |
 |:-------------|:-------------------------------------------------------------------------------------------|
-| Name         | Interface name. Physical devices show their system name (e.g., `eth0`, `wlan0`). Logical UCI interfaces appear with a "(logical)" suffix. |
-| Status       | Color-coded badge: **up** (green), **down** (red), or **unknown** (gray) for logical interfaces whose physical state cannot be determined. |
-| IP Address   | The primary IP address assigned to the interface, or a dash if none.                       |
-| Mergen Rules | Count of enabled Mergen rules that route traffic through this interface.                   |
-| Actions      | A **Ping** button to open the connectivity test panel for this interface.                  |
+| Ad           | Arayüz adı. Fiziksel cihazlar sistem adlarını gösterir (örn. `eth0`, `wlan0`). Mantıksal UCI arayüzleri "(logical)" sonekiyle görünür. |
+| Durum        | Renk kodlu rozet: **up** (yeşil), **down** (kırmızı) veya fiziksel durumu belirlenemeyen mantıksal arayüzler için **unknown** (gri). |
+| IP Adresi    | Arayüze atanmış birincil IP adresi; yoksa tire işareti.                                    |
+| Mergen Kuralları | Bu arayüz üzerinden trafik yönlendiren etkin Mergen kurallarının sayısı.               |
+| İşlemler     | Bu arayüz için bağlantı testi panelini açan **Ping** düğmesi.                             |
 
-### Connectivity Test (Ping)
+### Bağlantı Testi (Ping)
 
-Clicking the **Ping** button on any interface row opens a test panel:
+Herhangi bir arayüz satırındaki **Ping** düğmesine tıklamak bir test paneli açar:
 
-1. **Target** -- Enter an IP address or hostname to ping. Defaults to `8.8.8.8`.
-2. **Count** -- Select 3, 5, or 10 ping packets from the dropdown.
-3. Click the **Ping** button to execute the test.
+1. **Target** -- Ping atılacak bir IP adresi veya ana bilgisayar adı girin. Varsayılan `8.8.8.8`'dir.
+2. **Count** -- Açılır listeden 3, 5 veya 10 ping paketi seçin.
+3. Testi çalıştırmak için **Ping** düğmesine tıklayın.
 
-The test sends ICMP packets through the selected interface (using the `-I` flag) and displays:
+Test, seçili arayüz üzerinden (`-I` bayrağı kullanarak) ICMP paketleri gönderir ve şunları görüntüler:
 
-- The raw ping output in a log panel.
-- Summary cards showing: **Transmitted** packets, **Received** packets, **Loss** percentage, and **Average Latency** in milliseconds.
+- Günlük panelinde ham ping çıktısı.
+- Özet kartları: **Gönderilen** paketler, **Alınan** paketler, **Kayıp** yüzdesi ve milisaniye cinsinden **Ortalama Gecikme**.
 
-This is useful for verifying that a WAN interface has connectivity before assigning rules to it.
-
----
-
-## 6. Logs Page
-
-**Navigation:** Services > Mergen > Logs
-
-The Logs page provides a live, filterable view of Mergen system log entries sourced from the OpenWrt syslog.
-
-### Filter Bar
-
-The top of the page contains filter controls:
-
-| Control      | Options / Description                                                              |
-|:-------------|:-----------------------------------------------------------------------------------|
-| Level        | Dropdown to filter by minimum severity: All Levels, Error, Warning, Info, Debug. Selecting a level shows that level and all more severe levels (e.g., selecting "Warning" shows Warning and Error entries). |
-| Filter Text  | Free-text search field. Filters log entries by matching the text against the message body (case-insensitive). The filter applies with a 300-millisecond debounce after you stop typing. |
-| Lines        | Number of log entries to display: 25, 50, 100, or 200.                             |
-| Auto-refresh | Checkbox (enabled by default). When active, the log view refreshes every 5 seconds. |
-
-### Log Display
-
-Each log entry is displayed as a single line containing:
-
-- **Timestamp** -- Date and time from syslog.
-- **Level Badge** -- Color-coded: Error (red), Warning (yellow/amber), Info (green), Debug (gray).
-- **Message** -- The log message text.
-
-The log container auto-scrolls to the latest entry after each refresh.
-
-### Action Buttons
-
-| Button             | Description                                                                              |
-|:-------------------|:-----------------------------------------------------------------------------------------|
-| Refresh            | Manually triggers a log refresh with the current filter settings.                        |
-| Download Log       | Fetches up to 500 log entries and downloads them as a `.log` text file named `mergen-logs-YYYY-MM-DD.log`. Each line contains the timestamp, level in brackets, and the message. |
-| Diagnostics Bundle | Generates a comprehensive diagnostics package and downloads it as a `.txt` file. The bundle includes: Mergen status, rule list, validation output, `ip rule show`, `ip route show table 100`, `nft list sets`, and the 50 most recent Mergen log entries. |
-
-The diagnostics bundle is particularly useful when reporting issues or seeking support.
+Bu, kural atamadan önce bir WAN arayüzünün bağlantısını doğrulamak için kullanışlıdır.
 
 ---
 
-## 7. Advanced Settings Page
+## 6. Kayıtlar Sayfası
 
-**Navigation:** Services > Mergen > Advanced
+**Gezinme:** Services > Mergen > Logs
 
-The Advanced page provides access to all global Mergen settings organized into tabbed sections, along with maintenance operations at the bottom.
+Kayıtlar sayfası, OpenWrt syslog'dan alınan Mergen sistem günlük girişlerinin canlı, filtrelenebilir bir görünümünü sunar.
 
-### Master Enable
+### Filtre Çubuğu
 
-At the top of the settings form, the **Enabled** checkbox controls the global on/off state of the Mergen system.
+Sayfanın üst kısmında filtre kontrolleri bulunur:
 
-### Routing Tab
+| Kontrol        | Seçenekler / Açıklama                                                            |
+|:---------------|:---------------------------------------------------------------------------------|
+| Level          | Minimum önem derecesine göre filtreleme açılır listesi: All Levels, Error, Warning, Info, Debug. Bir seviye seçmek o seviyeyi ve daha ciddi tüm seviyeleri gösterir (örn. "Warning" seçimi Warning ve Error girişlerini gösterir). |
+| Filter Text    | Serbest metin arama alanı. Mesaj gövdesine karşı metin eşleştirmesiyle günlük girişlerini filtreler (büyük/küçük harf duyarsız). Filtre, yazmayı bıraktıktan 300 milisaniye sonra uygulanır. |
+| Lines          | Görüntülenecek günlük girişi sayısı: 25, 50, 100 veya 200.                      |
+| Auto-refresh   | Onay kutusu (varsayılan olarak etkin). Aktif olduğunda günlük görünümü her 5 saniyede yenilenir. |
 
-| Setting                 | Description                                                                         | Default |
-|:------------------------|:------------------------------------------------------------------------------------|:--------|
-| Routing Table Number    | The Linux routing table number used by Mergen (1--252).                             | 100     |
-| ip rule Priority Start  | The starting priority number for `ip rule` entries created by Mergen (1--32000).    | 100     |
-| Operating Mode          | **Standalone** (recommended): Mergen manages its own routing tables independently. **mwan3 Integration**: Mergen cooperates with the mwan3 multi-WAN manager. | Standalone |
+### Günlük Görünümü
 
-### Packet Engine Tab
+Her günlük girişi tek bir satırda şunları içerir:
 
-| Setting                | Description                                                                              | Default  |
-|:-----------------------|:-----------------------------------------------------------------------------------------|:---------|
-| Packet Matching Engine | **nftables** (recommended): Uses nftables sets for prefix matching. **ipset** (legacy): Uses the older ipset framework. Choose based on your OpenWrt version and installed packages. | nftables |
+- **Zaman Damgası** -- Syslog'dan tarih ve saat.
+- **Seviye Rozeti** -- Renk kodlu: Error (kırmızı), Warning (sarı/kehribar), Info (yeşil), Debug (gri).
+- **Mesaj** -- Günlük mesajı metni.
 
-### IPv6 Tab
+Günlük kapsayıcısı her yenilemeden sonra en son girişe otomatik olarak kaydırılır.
 
-| Setting         | Description                                                                             | Default |
-|:----------------|:----------------------------------------------------------------------------------------|:--------|
-| Enable IPv6     | Toggle IPv6 prefix resolution and routing. When disabled, only IPv4 prefixes are processed. | Off     |
-| IPv6 Table Mode | Visible only when IPv6 is enabled. **Shared table with IPv4**: IPv6 routes go into the same routing table as IPv4. **Separate IPv6 table**: IPv6 routes use a dedicated table number. | Shared  |
+### İşlem Düğmeleri
 
-### Performance Tab
+| Düğme              | Açıklama                                                                             |
+|:-------------------|:-------------------------------------------------------------------------------------|
+| Refresh            | Geçerli filtre ayarlarıyla günlük yenilemesini elle tetikler.                        |
+| Download Log       | En fazla 500 günlük girişini alır ve `mergen-logs-YYYY-MM-DD.log` adlı bir `.log` metin dosyası olarak indirir. Her satır zaman damgası, köşeli parantez içinde seviye ve mesajı içerir. |
+| Diagnostics Bundle | Kapsamlı bir tanılama paketi oluşturur ve `.txt` dosyası olarak indirir. Paket şunları içerir: Mergen durumu, kural listesi, doğrulama çıktısı, `ip rule show`, `ip route show table 100`, `nft list sets` ve en son 50 Mergen günlük girişi. |
 
-| Setting                       | Description                                                                    | Default |
-|:------------------------------|:-------------------------------------------------------------------------------|:--------|
-| Max Prefix Limit (per rule)   | Maximum number of prefixes allowed per individual rule. Prevents a single ASN with excessive announcements from consuming resources. | 10000   |
-| Total Prefix Limit (all rules)| Maximum total prefixes across all rules combined.                              | 50000   |
-| Update Interval (seconds)     | How often prefix data is automatically refreshed from providers.               | 86400   |
-| API Timeout (seconds)         | Maximum time to wait for a provider API response (1--120).                     | 30      |
-| Parallel Query Limit          | Number of concurrent provider queries during prefix resolution (1--10).        | 2       |
+Tanılama paketi, sorun bildirirken veya destek ararken özellikle kullanışlıdır.
 
-### Security Tab
+---
 
-| Setting                           | Description                                                                      | Default |
-|:----------------------------------|:---------------------------------------------------------------------------------|:--------|
-| Rollback Watchdog Timeout         | Seconds to wait after applying new routes before confirming them. If connectivity to the ping target is lost during this window, routes are automatically rolled back (10--600). | 60      |
-| Safe Mode Ping Target             | IP address or hostname pinged by the watchdog to verify connectivity after route changes. | 8.8.8.8 |
+## 7. Gelişmiş Ayarlar Sayfası
 
-### Logging Tab
+**Gezinme:** Services > Mergen > Advanced
 
-| Setting   | Description                                                | Default |
-|:----------|:-----------------------------------------------------------|:--------|
-| Log Level | Minimum log severity written to syslog: Debug, Info, Warning, or Error. | Info    |
+Gelişmiş sayfa, sekmeli bölümler halinde düzenlenmiş tüm genel Mergen ayarlarına erişim sağlar; altta bakım işlemleri bulunur.
 
-### Maintenance Section
+### Ana Etkinleştirme
 
-Below the tabbed settings, the maintenance section provides the following operations:
+Ayarlar formunun en üstünde, **Enabled** onay kutusu Mergen sisteminin genel açık/kapalı durumunu kontrol eder.
 
-#### Flush All Routes
+### Yönlendirme Sekmesi
 
-Removes all Mergen-created routes and nftables/ipset sets from the system. A confirmation dialog warns that all routes will be removed. This does not delete rules from the configuration; routes can be recreated by clicking **Apply All** on the Overview or Rules page.
+| Ayar                     | Açıklama                                                                        | Varsayılan  |
+|:-------------------------|:--------------------------------------------------------------------------------|:------------|
+| Routing Table Number     | Mergen'in kullandığı Linux yönlendirme tablosu numarası (1--252).               | 100         |
+| ip rule Priority Start   | Mergen'in oluşturduğu `ip rule` girişleri için başlangıç öncelik numarası (1--32000). | 100         |
+| Operating Mode           | **Standalone** (önerilen): Mergen yönlendirme tablolarını bağımsız olarak yönetir. **mwan3 Integration**: Mergen, mwan3 çoklu WAN yöneticisiyle birlikte çalışır. | Standalone  |
 
-#### Backup Config
+### Paket Motoru Sekmesi
 
-Downloads the current `/etc/config/mergen` UCI configuration file through the LuCI backup mechanism. Save this file to restore your configuration later.
+| Ayar                   | Açıklama                                                                             | Varsayılan |
+|:-----------------------|:-------------------------------------------------------------------------------------|:-----------|
+| Packet Matching Engine | **nftables** (önerilen): Önek eşleştirmesi için nftables setleri kullanır. **ipset** (eski): Eski ipset çerçevesini kullanır. OpenWrt sürümünüze ve kurulu paketlere göre seçin. | nftables   |
 
-#### Validate Config
+### IPv6 Sekmesi
 
-Runs `mergen validate --check-providers` to verify the integrity of the current configuration and test connectivity to all providers. Results appear in a log panel below the buttons.
+| Ayar            | Açıklama                                                                            | Varsayılan |
+|:----------------|:------------------------------------------------------------------------------------|:-----------|
+| Enable IPv6     | IPv6 önek çözümleme ve yönlendirmeyi etkinleştirir/devre dışı bırakır. Devre dışı olduğunda yalnızca IPv4 önekleri işlenir. | Kapalı     |
+| IPv6 Table Mode | Yalnızca IPv6 etkin olduğunda görünür. **Shared table with IPv4**: IPv6 rotaları IPv4 ile aynı yönlendirme tablosuna gider. **Separate IPv6 table**: IPv6 rotaları ayrı bir tablo numarası kullanır. | Shared     |
 
-#### Factory Reset
+### Performans Sekmesi
 
-Resets all Mergen settings to their defaults. This operation:
+| Ayar                                | Açıklama                                                                 | Varsayılan |
+|:------------------------------------|:-------------------------------------------------------------------------|:-----------|
+| Max Prefix Limit (per rule)         | Kural başına izin verilen maksimum önek sayısı. Aşırı duyuru yapan tek bir ASN'nin kaynakları tüketmesini önler. | 10000      |
+| Total Prefix Limit (all rules)      | Tüm kurallar genelinde toplam maksimum önek sayısı.                      | 50000      |
+| Update Interval (seconds)           | Önek verisinin sağlayıcılardan ne sıklıkla otomatik yenileneceği.       | 86400      |
+| API Timeout (seconds)               | Sağlayıcı API yanıtı için maksimum bekleme süresi (1--120).             | 30         |
+| Parallel Query Limit                | Önek çözümleme sırasında eşzamanlı sağlayıcı sorgu sayısı (1--10).      | 2          |
 
-- Deletes all configured rules.
-- Deletes all configured providers.
-- Resets every global setting to its default value.
-- Flushes all active routes.
+### Güvenlik Sekmesi
 
-Two consecutive confirmation dialogs must be accepted before the reset proceeds. The page reloads automatically after completion.
+| Ayar                              | Açıklama                                                                         | Varsayılan |
+|:----------------------------------|:---------------------------------------------------------------------------------|:-----------|
+| Rollback Watchdog Timeout         | Yeni rotaları uyguladıktan sonra onaylamadan önce beklenecek saniye. Bu süre zarfında ping hedefine bağlantı kesilirse rotalar otomatik olarak geri alınır (10--600). | 60         |
+| Safe Mode Ping Target             | Rota değişikliklerinden sonra bağlantıyı doğrulamak için nöbetçinin ping attığı IP adresi veya ana bilgisayar adı. | 8.8.8.8    |
 
-#### Restore Configuration
+### Günlükleme Sekmesi
 
-To restore a previously backed up configuration:
+| Ayar      | Açıklama                                                     | Varsayılan |
+|:----------|:-------------------------------------------------------------|:-----------|
+| Log Level | Syslog'a yazılan minimum günlük ciddiyeti: Debug, Info, Warning veya Error. | Info       |
 
-1. Click the file input and select a `.conf` or `.txt` file containing a Mergen UCI configuration.
-2. The **Restore Config** button becomes active once a file is selected.
-3. Click **Restore Config** and confirm the replacement.
+### Bakım Bölümü
 
-The uploaded content is validated to ensure it contains a `config global` section. Upon success, the current configuration file is overwritten and the page reloads.
+Sekmeli ayarların altında bakım bölümü aşağıdaki işlemleri sunar:
 
-#### Version Information
+#### Tüm Rotaları Temizle
 
-Three version values are displayed at the bottom of the page:
+Mergen tarafından oluşturulan tüm rotaları ve nftables/ipset setlerini sistemden kaldırır. Tüm rotaların kaldırılacağı konusunda bir onay iletişim kutusu uyarır. Bu, kuralları yapılandırmadan silmez; rotalar Genel Bakış veya Kurallar sayfasında **Apply All** tıklayarak yeniden oluşturulabilir.
 
-| Item           | Description                                                     |
-|:---------------|:----------------------------------------------------------------|
-| Mergen CLI     | The version of the `mergen` command-line binary.                |
-| LuCI App       | The installed version of the `luci-app-mergen` package.         |
-| Config Version | The internal configuration schema version number.               |
+#### Yapılandırma Yedekleme
+
+LuCI yedekleme mekanizması aracılığıyla mevcut `/etc/config/mergen` UCI yapılandırma dosyasını indirir. Yapılandırmanızı daha sonra geri yüklemek için bu dosyayı saklayın.
+
+#### Yapılandırma Doğrulama
+
+Mevcut yapılandırmanın bütünlüğünü doğrulamak ve tüm sağlayıcılara bağlantıyı test etmek için `mergen validate --check-providers` komutunu çalıştırır. Sonuçlar düğmelerin altındaki günlük panelinde görünür.
+
+#### Fabrika Ayarlarına Sıfırlama
+
+Tüm Mergen ayarlarını varsayılan değerlerine sıfırlar. Bu işlem:
+
+- Yapılandırılmış tüm kuralları siler.
+- Yapılandırılmış tüm sağlayıcıları siler.
+- Her genel ayarı varsayılan değerine sıfırlar.
+- Tüm aktif rotaları temizler.
+
+Sıfırlama işlemine başlamadan önce iki ardışık onay iletişim kutusu kabul edilmelidir. Tamamlandıktan sonra sayfa otomatik olarak yeniden yüklenir.
+
+#### Yapılandırma Geri Yükleme
+
+Daha önce yedeklenmiş bir yapılandırmayı geri yüklemek için:
+
+1. Dosya girişine tıklayın ve Mergen UCI yapılandırması içeren bir `.conf` veya `.txt` dosyası seçin.
+2. Dosya seçildikten sonra **Restore Config** düğmesi aktif hale gelir.
+3. **Restore Config** tıklayın ve değiştirmeyi onaylayın.
+
+Yüklenen içerik, `config global` bölümü içerdiğinden emin olmak için doğrulanır. Başarılı olduğunda mevcut yapılandırma dosyası üzerine yazılır ve sayfa yeniden yüklenir.
+
+#### Sürüm Bilgisi
+
+Sayfanın alt kısmında üç sürüm değeri görüntülenir:
+
+| Öğe            | Açıklama                                                      |
+|:---------------|:--------------------------------------------------------------|
+| Mergen CLI     | `mergen` komut satırı aracının sürümü.                        |
+| LuCI App       | `luci-app-mergen` paketinin kurulu sürümü.                    |
+| Config Version | Dahili yapılandırma şema sürüm numarası.                     |

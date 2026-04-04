@@ -1,155 +1,160 @@
-# Mergen Troubleshooting Guide
+# Mergen Sorun Giderme Rehberi
 
-This document covers common issues encountered when running Mergen on OpenWrt,
-along with diagnostic commands and resolution steps.
+[English](troubleshooting.en.md)
 
----
-
-## Table of Contents
-
-1. [Rules Not Working](#1-rules-not-working)
-2. [High Memory Usage](#2-high-memory-usage)
-3. [Failover Issues](#3-failover-issues)
-4. [Provider Errors](#4-provider-errors)
-5. [mwan3 Conflicts](#5-mwan3-conflicts)
-6. [Safe Mode and Rollback](#6-safe-mode-and-rollback)
-7. [LuCI Not Showing](#7-luci-not-showing)
-8. [Log Analysis](#8-log-analysis)
+Bu belge, Mergen'i OpenWrt üzerinde çalıştırırken karşılaşılan yaygın sorunları,
+tanı komutlarını ve çözüm adımlarını kapsamaktadır.
 
 ---
 
-## 1. Rules Not Working
+## İçindekiler
 
-If traffic is not being routed through the expected interface after running
-`mergen apply`, work through the following checks in order.
+1. [Kurallar Çalışmıyor](#1-kurallar-çalışmıyor)
+2. [Yüksek Bellek Kullanımı](#2-yüksek-bellek-kullanımı)
+3. [Yedekleme Geçiş Sorunları](#3-yedekleme-geçiş-sorunları)
+4. [Sağlayıcı Hataları](#4-sağlayıcı-hataları)
+5. [mwan3 Çatışmaları](#5-mwan3-çatışmaları)
+6. [Güvenli Mod ve Geri Alma](#6-güvenli-mod-ve-geri-alma)
+7. [LuCI Görünmüyor](#7-luci-görünmüyor)
+8. [Log Analizi](#8-log-analizi)
 
-### 1.1 Verify Mergen Status
+---
 
-Confirm that the Mergen daemon is running and that rules are in the `active`
-state:
+## 1. Kurallar Çalışmıyor
+
+`mergen apply` çalıştırıldıktan sonra trafik beklenen arayüz üzerinden
+yönlendirilmiyorsa, aşağıdaki kontrolleri sırasıyla yapın.
+
+### 1.1 Mergen Durumunu Doğrulayın
+
+Mergen daemon'unun çalıştığını ve kuralların `active` durumunda olduğunu
+doğrulayın:
 
 ```sh
 mergen status
 ```
 
-Expected output includes `Daemon: active` and your rules listed as `active`
-rather than `pending` or `failed`. If the daemon is not running, start it:
+Beklenen çıktı `Daemon: active` ifadesini ve kurallarınızın `pending` veya
+`failed` yerine `active` olarak listelenmesini içerir. Daemon çalışmıyorsa
+başlatmanız gerekir:
 
 ```sh
 /etc/init.d/mergen start
 ```
 
-If the daemon fails to start, check the init script output:
+Daemon başlatma başarısız olursa, init betiği çıktısını kontrol edin:
 
 ```sh
 /etc/init.d/mergen start; echo "Exit code: $?"
 ```
 
-### 1.2 Verify the Target Interface
+### 1.2 Hedef Arayüzü Doğrulayın
 
-The interface specified in the `--via` option must be up and have a valid
-gateway. Check its link state:
+`--via` seçeneğinde belirtilen arayüzün aktif olması ve geçerli bir ağ geçidine
+sahip olması gerekir. Bağlantı durumunu kontrol edin:
 
 ```sh
 ip link show <interface>
 ```
 
-The output must show `state UP`. If the interface is down, bring it up through
-the standard OpenWrt mechanism:
+Çıktıda `state UP` gösterilmelidir. Arayüz kapalı ise standart OpenWrt
+mekanizması ile aktif edin:
 
 ```sh
 ifup <interface>
 ```
 
-Confirm that the interface has an assigned IP address and default gateway:
+Arayüzün atanmış bir IP adresi ve varsayılan ağ geçidine sahip olduğunu
+doğrulayın:
 
 ```sh
 ifstatus <interface>
 ```
 
-### 1.3 Check the Routing Table
+### 1.3 Yönlendirme Tablosunu Kontrol Edin
 
-Mergen creates dedicated routing tables for policy-based routing. The default
-starting table number is 100 (configurable via the `default_table` UCI option).
-Inspect the contents of the relevant table:
+Mergen, ilke tabanlı yönlendirme için özel yönlendirme tabloları oluşturur.
+Varsayılan başlangıç tablo numarası 100'dür (`default_table` UCI seçeneği ile
+yapılandırılabilir). İlgili tablonun içeriğini inceleyin:
 
 ```sh
 ip route show table 100
 ```
 
-If the table is empty or missing expected routes, re-apply the rules:
+Tablo boş ise veya beklenen rotalar eksikse, kuralları yeniden uygulayın:
 
 ```sh
 mergen apply
 ```
 
-To see all ip rules that Mergen has installed:
+Mergen'in yüklediği tüm ip kurallarını görmek için:
 
 ```sh
 ip rule show | grep mergen
 ```
 
-For IPv6 routing tables:
+IPv6 yönlendirme tabloları için:
 
 ```sh
 ip -6 route show table 100
 ip -6 rule show | grep mergen
 ```
 
-### 1.4 Inspect nftables / ipset Sets
+### 1.4 nftables / ipset Kümelerini İnceleyin
 
-Mergen uses nftables sets (or ipset on legacy systems) for efficient prefix
-matching. Verify that sets are populated:
+Mergen, verimli ön ek eşleştirme için nftables kümeleri (veya eski sistemlerde
+ipset) kullanır. Kümelerin doldurulduğunu doğrulayın:
 
-**nftables (default):**
+**nftables (varsayılan):**
 
 ```sh
 nft list table inet mergen
 ```
 
-This should display sets named after your rules (e.g., `mergen_cloudflare`) with
-the expected number of elements. To inspect a specific set:
+Bu komut, kurallarınızın adıyla adlandırılan kümeleri (örneğin
+`mergen_cloudflare`) beklenen eleman sayısıyla göstermelidir. Belirli bir kümeyi
+incelemek için:
 
 ```sh
 nft list set inet mergen mergen_cloudflare
 ```
 
-**ipset (legacy systems):**
+**ipset (eski sistemler):**
 
 ```sh
 ipset list | grep mergen
 ipset list mergen_cloudflare
 ```
 
-If the sets exist but are empty, the ASN resolver may have failed. Check
-provider status:
+Kümeler mevcutsa ancak boşsa, ASN çözümleyici başarısız olmuş olabilir.
+Sağlayıcı durumunu kontrol edin:
 
 ```sh
 mergen diag
 ```
 
-### 1.5 Verify DNS Resolution for Domain Rules
+### 1.5 Alan Adı Kuralları İçin DNS Çözümlemesini Doğrulayın
 
-If you have domain-based rules, Mergen relies on dnsmasq integration
-(ipset/nftset). Confirm that dnsmasq is configured correctly:
+Alan adı tabanlı kurallarınız varsa, Mergen dnsmasq entegrasyonuna
+(ipset/nftset) bağlıdır. dnsmasq'in doğru yapılandırıldığını doğrulayın:
 
 ```sh
 cat /tmp/dnsmasq.d/mergen.conf
 ```
 
-Verify that dnsmasq is running with the Mergen configuration loaded:
+dnsmasq'in Mergen yapılandırması yüklü olarak çalıştığını doğrulayın:
 
 ```sh
 pgrep dnsmasq
 ```
 
-Test DNS resolution for a domain in your rule set:
+Kural setinizdeki bir alan adı için DNS çözümlemesini test edin:
 
 ```sh
 nslookup example.com 127.0.0.1
 ```
 
-If dnsmasq is not picking up the Mergen configuration, restart it:
+dnsmasq Mergen yapılandırmasını almıyorsa, yeniden başlatın:
 
 ```sh
 /etc/init.d/dnsmasq restart
@@ -157,37 +162,38 @@ If dnsmasq is not picking up the Mergen configuration, restart it:
 
 ---
 
-## 2. High Memory Usage
+## 2. Yüksek Bellek Kullanımı
 
-Mergen stores prefix lists in nftables sets (or ipsets) in kernel memory.
-Country-based rules and large ASNs can generate tens of thousands of prefixes.
+Mergen, ön ek listelerini çekirdek belleğinde nftables kümelerinde (veya
+ipset'lerde) depolar. Ülke tabanlı kurallar ve büyük ASN'ler on binlerce ön ek
+üretebilir.
 
-### 2.1 Check Current Prefix Counts
+### 2.1 Mevcut Ön Ek Sayılarını Kontrol Edin
 
 ```sh
 mergen status
 ```
 
-The output reports total prefix counts for both IPv4 and IPv6. Review per-rule
-prefix counts:
+Çıktı, hem IPv4 hem de IPv6 için toplam ön ek sayılarını raporlar. Kural başına
+ön ek sayılarını inceleyin:
 
 ```sh
 mergen list
 ```
 
-Rules with very high prefix counts (e.g., country-based rules for large
-countries) are the most common cause of memory pressure.
+Çok yüksek ön ek sayılarına sahip kurallar (örneğin büyük ülkeler için ülke
+tabanlı kurallar) bellek baskısının en yaygın nedenidir.
 
-### 2.2 Reduce Prefix Limits
+### 2.2 Ön Ek Limitlerini Azaltın
 
-Mergen enforces two limits to prevent resource exhaustion:
+Mergen, kaynak tükenmesini önlemek için iki limit uygular:
 
-| UCI Option             | Description                         | Default |
-|------------------------|-------------------------------------|---------|
-| `prefix_limit`         | Maximum prefixes per individual rule | 10000   |
-| `total_prefix_limit`   | Maximum prefixes across all rules   | 50000   |
+| UCI Seçeneği             | Açıklama                                    | Varsayılan |
+|--------------------------|---------------------------------------------|------------|
+| `prefix_limit`           | Tek bir kural başına maksimum ön ek sayısı  | 10000      |
+| `total_prefix_limit`     | Tüm kurallar genelinde maksimum ön ek sayısı | 50000      |
 
-To lower these limits:
+Bu limitleri düşürmek için:
 
 ```sh
 uci set mergen.global.prefix_limit='5000'
@@ -196,15 +202,15 @@ uci commit mergen
 mergen apply
 ```
 
-### 2.3 Minimize Country-Based Rules
+### 2.3 Ülke Tabanlı Kuralları En Aza İndirin
 
-A single `--country` rule can resolve into thousands of ASNs, each with hundreds
-of prefixes. Strategies to reduce memory consumption:
+Tek bir `--country` kuralı, her birinde yüzlerce ön ek bulunan binlerce ASN'ye
+çözümlenebilir. Bellek tüketimini azaltma stratejileri:
 
-- Replace broad country rules with targeted ASN rules for the specific services
-  you need.
-- Reduce the number of active country rules.
-- Consider disabling IPv6 if dual-stack routing is not required:
+- Geniş ülke kurallarını, ihtiyaç duyduğunuz belirli hizmetler için hedefli ASN
+  kuralları ile değiştirin.
+- Aktif ülke kuralı sayısını azaltın.
+- Çift yığın yönlendirme gerekmiyorsa IPv6'yı devre dışı bırakın:
 
 ```sh
 uci set mergen.global.ipv6_enabled='0'
@@ -212,90 +218,90 @@ uci commit mergen
 mergen apply
 ```
 
-### 2.4 Monitor System Memory
+### 2.4 Sistem Belleğini İzleyin
 
 ```sh
 free -m
 cat /proc/meminfo | grep -E 'MemTotal|MemFree|MemAvailable'
 ```
 
-If available memory drops below 10 MB on a 32 MB device, reduce your rule set
-or increase prefix limits only if the hardware can support it.
+32 MB'lik bir cihazda kullanılabilir bellek 10 MB'nin altına düştüyse, kural
+setinizi azaltın veya ön ek limitlerini yalnızca donanım destekliyorsa artırın.
 
 ---
 
-## 3. Failover Issues
+## 3. Yedekleme Geçiş Sorunları
 
-Mergen supports automatic failover: when the primary interface goes down,
-traffic is rerouted through a configured fallback interface.
+Mergen, otomatik yedekleme geçişini destekler: birincil arayüz kapandığında
+trafik, yapılandırılmış yedek arayüz üzerinden yeniden yönlendirilir.
 
-### 3.1 Verify Fallback Configuration
+### 3.1 Yedek Yapılandırmasını Doğrulayın
 
-Ensure that the rule has a fallback interface defined:
+Kuralın tanımlanmış bir yedek arayüzüne sahip olduğunu doğrulayın:
 
 ```sh
 mergen show <rule_name>
 ```
 
-The output should include a `fallback` field. If missing, add it:
+Çıktı bir `fallback` alanı içermelidir. Eksikse ekleyin:
 
 ```sh
 mergen add --asn 13335 --via wg0 --fallback wan --name cloudflare
 ```
 
-### 3.2 Confirm the Fallback Interface Is Up
+### 3.2 Yedek Arayüzünün Aktif Olduğunu Doğrulayın
 
 ```sh
 ip link show <fallback_interface>
 ifstatus <fallback_interface>
 ```
 
-The fallback interface must be up and have a valid gateway before failover can
-succeed.
+Yedekleme geçişinin başarılı olabilmesi için yedek arayüzün aktif olması ve
+geçerli bir ağ geçidine sahip olması gerekir.
 
-### 3.3 Check the Watchdog
+### 3.3 Gözetleyiciyi Kontrol Edin
 
-The watchdog daemon handles interface health monitoring and triggers failover.
-Verify it is running:
+Gözetleyici daemon'u arayüz sağlık izlemesini yönetir ve yedekleme geçişini
+tetikler. Çalıştığını doğrulayın:
 
 ```sh
 ps | grep mergen-watchdog
 ```
 
-If it is not running, check that the watchdog is enabled in the configuration:
+Çalışmıyorsa, gözetleyicinin yapılandırmada etkinleştirildiğini kontrol edin:
 
 ```sh
 uci get mergen.global.watchdog_enabled
 ```
 
-Start the watchdog if needed:
+Gerekirse gözetleyiciyi başlatın:
 
 ```sh
 /etc/init.d/mergen start
 ```
 
-### 3.4 Inspect the Failover State Directory
+### 3.4 Yedekleme Geçiş Durum Dizinini İnceleyin
 
-Mergen tracks failover state in `/tmp/mergen/failover/`. Each interface has a
-state file:
+Mergen, yedekleme geçiş durumunu `/tmp/mergen/failover/` dizininde takip eder.
+Her arayüzün bir durum dosyası vardır:
 
 ```sh
 ls -la /tmp/mergen/failover/
 cat /tmp/mergen/failover/<interface>
 ```
 
-If the state file is stale or corrupted, clearing it and restarting the watchdog
-may resolve the issue:
+Durum dosyası eski veya bozuksa, temizleyip gözetleyiciyi yeniden başlatmak
+sorunu çözebilir:
 
 ```sh
 rm -rf /tmp/mergen/failover/
 /etc/init.d/mergen restart
 ```
 
-### 3.5 Test Interface Reachability
+### 3.5 Arayüz Erişimini Test Edin
 
-Simulate a failover scenario by verifying that the watchdog's ping target is
-reachable through each interface:
+Gözetleyicinin ping hedefine her arayüz üzerinden erişilebildiğini doğrulayarak
+bir yedekleme geçiş senaryosu simüle edin:
 
 ```sh
 ping -I <primary_interface> -c 3 8.8.8.8
@@ -304,64 +310,66 @@ ping -I <fallback_interface> -c 3 8.8.8.8
 
 ---
 
-## 4. Provider Errors
+## 4. Sağlayıcı Hataları
 
-Mergen uses pluggable ASN data providers (RIPE RIS, bgp.tools, bgpview.io,
-MaxMind, RouteViews, IRR/RADB). If prefix resolution fails, follow these steps.
+Mergen, takılabilen ASN veri sağlayıcıları kullanır (RIPE RIS, bgp.tools,
+bgpview.io, MaxMind, RouteViews, IRR/RADB). Ön ek çözümlemesi başarısız olursa,
+şu adımları izleyin.
 
-### 4.1 Validate Providers
+### 4.1 Sağlayıcıları Doğrulayın
 
-Run the built-in provider validation:
+Yerleşik sağlayıcı doğrulamasını çalıştırın:
 
 ```sh
 mergen validate --check-providers
 ```
 
-This tests connectivity and response format for each enabled provider.
+Bu, her etkin sağlayıcı için bağlantı ve yanıt formatını test eder.
 
-### 4.2 Check Internet Connectivity
+### 4.2 İnternet Bağlantısınızı Kontrol Edin
 
-Providers require outbound HTTPS access. Verify basic connectivity:
+Sağlayıcılar, giden HTTPS erişimi gerektirir. Temel bağlantıyı doğrulayın:
 
 ```sh
 ping -c 3 8.8.8.8
 wget -q -O /dev/null https://stat.ripe.net/ && echo "RIPE reachable" || echo "RIPE unreachable"
 ```
 
-If DNS resolution is failing:
+DNS çözümlemesi başarısız oluyorsa:
 
 ```sh
 nslookup stat.ripe.net
 nslookup bgp.tools
 ```
 
-### 4.3 Run Provider Diagnostics
+### 4.3 Sağlayıcı Tanısını Çalıştırın
 
 ```sh
 mergen diag
 ```
 
-This displays the health status, response time, and success rate for each
-configured provider. Look for providers reporting timeouts or HTTP errors.
+Bu, yapılandırılmış her sağlayıcı için sağlık durumunu, yanıt süresini ve başarı
+oranını görüntüler. Zaman aşımı veya HTTP hataları raporlayan sağlayıcıları
+arayın.
 
-### 4.4 Test a Specific ASN Resolution
+### 4.4 Belirli Bir ASN Çözümlemesini Test Edin
 
 ```sh
 mergen resolve 13335
 ```
 
-If the primary provider fails, Mergen automatically falls back to the next
-provider in priority order. The output indicates which provider was used. If all
-providers fail, check:
+Birincil sağlayıcı başarısız olursa, Mergen otomatik olarak öncelik sırasındaki
+bir sonraki sağlayıcıya geçer. Çıktı, hangi sağlayıcının kullanıldığını
+belirtir. Tüm sağlayıcılar başarısız olursa, şu kontrolleri yapın:
 
-- Firewall rules that may be blocking outbound HTTPS (port 443).
-- Proxy settings if the router is behind a proxy.
-- Provider-specific rate limits (RIPE and bgpview.io enforce limits).
+- Giden HTTPS (port 443) bağlantılarını engelleyen güvenlik duvarı kuralları.
+- Yönlendirici bir proxy arkasındaysa proxy ayarları.
+- Sağlayıcıya özel hız sınırları (RIPE ve bgpview.io sınır uygular).
 
-### 4.5 Adjust Provider Priority
+### 4.5 Sağlayıcı Önceliği Ayarlayın
 
-If a provider is consistently slow or unreliable, lower its priority or disable
-it:
+Bir sağlayıcı sürekli olarak yavaş veya güvenilmezse, önceliği düşürün veya
+devre dışı bırakın:
 
 ```sh
 uci set mergen.ripe.priority='99'
@@ -369,9 +377,9 @@ uci set mergen.bgptools.priority='10'
 uci commit mergen
 ```
 
-### 4.6 Clear the Provider Cache
+### 4.6 Sağlayıcı Önbelleğini Temizleyin
 
-Stale cache entries can cause unexpected behavior:
+Eski önbellek girdileri beklenmedik davranışlara neden olabilir:
 
 ```sh
 rm -rf /tmp/mergen/cache/*
@@ -380,47 +388,48 @@ mergen update
 
 ---
 
-## 5. mwan3 Conflicts
+## 5. mwan3 Çatışmaları
 
-Mergen can operate in standalone mode or integrate with mwan3 for multi-WAN
-load balancing. Conflicts arise when both tools manage overlapping routing
-tables or ip rules.
+Mergen, bağımsız modda çalışabilir veya çoklu WAN yük dengeleme için mwan3 ile
+entegre olabilir. Her iki araç da çakışan yönlendirme tabloları veya ip
+kurallarını yönettiğinde çatışmalar ortaya çıkar.
 
-### 5.1 Diagnose mwan3 Conflicts
+### 5.1 mwan3 Çatışmalarını Teşhis Edin
 
-Run the mwan3-specific diagnostic:
+mwan3'e özel tanıyı çalıştırın:
 
 ```sh
 mergen diag --mwan3
 ```
 
-This checks for overlapping routing table numbers, conflicting ip rules, and
-policy collisions between Mergen and mwan3.
+Bu, Mergen ve mwan3 arasındaki çakışan yönlendirme tablo numaralarını, çatışan
+ip kurallarını ve ilke çatışmalarını kontrol eder.
 
-### 5.2 Adjust the Default Routing Table
+### 5.2 Varsayılan Yönlendirme Tablosunu Ayarlayın
 
-If Mergen and mwan3 use the same routing table numbers, change the Mergen
-default:
+Mergen ve mwan3 aynı yönlendirme tablo numaralarını kullanıyorsa, Mergen
+varsayılanını değiştirin:
 
 ```sh
-# Check current Mergen table
+# Mevcut Mergen tablosunu kontrol edin
 uci get mergen.global.default_table
 
-# Check mwan3 tables
+# mwan3 tablolarını kontrol edin
 ip rule show | grep mwan
 
-# Set Mergen to a non-overlapping range
+# Mergen'i çakışmayan bir aralığa ayarlayın
 uci set mergen.global.default_table='200'
 uci commit mergen
 mergen flush
 mergen apply
 ```
 
-### 5.3 Switch to mwan3 Mode
+### 5.3 mwan3 Moduna Geçin
 
-If you want Mergen to inject its rules into mwan3 policies instead of managing
-routes independently, consider switching to mwan3 integration mode. This avoids
-table conflicts entirely by delegating route management to mwan3:
+Mergen'in rotaları bağımsız olarak yönetmek yerine kurallarını mwan3
+ilkelerine enjekte etmesini istiyorsanız, mwan3 entegrasyon moduna geçmeyi
+düşünün. Bu, rota yönetimini mwan3'e devrederek tablo çatışmalarını tamamen
+önler:
 
 ```sh
 uci set mergen.global.mode='mwan3'
@@ -428,133 +437,134 @@ uci commit mergen
 mergen apply
 ```
 
-### 5.4 Inspect Overlapping Rules
+### 5.4 Çakışan Kuralları İnceleyin
 
-List all ip rules from both tools to identify conflicts:
+Çatışmaları belirlemek için her iki aracın tüm ip kurallarını listeleyin:
 
 ```sh
 ip rule show
 ```
 
-Look for duplicate table references or rules at the same priority level. Mergen
-rules are identifiable by their comment tag.
+Tekrarlayan tablo referansları veya aynı öncelik düzeyindeki kuralları arayın.
+Mergen kuralları, yorum etiketi ile tanımlanabilir.
 
 ---
 
-## 6. Safe Mode and Rollback
+## 6. Güvenli Mod ve Geri Alma
 
-Mergen includes a safe mode mechanism that prevents lockout after applying
-incorrect rules. When `mergen apply --safe` is used, the system waits for
-explicit confirmation before making changes permanent.
+Mergen, yanlış kurallar uygulandıktan sonra erişim kaybını önleyen bir güvenli
+mod mekanizması içerir. `mergen apply --safe` kullanıldığında, sistem
+değişiklikleri kalıcı yapmadan önce açık onay bekler.
 
-### 6.1 Confirming Changes
+### 6.1 Değişiklikleri Onaylama
 
-After `mergen apply --safe`, you have a limited window (default: 60 seconds) to
-confirm:
+`mergen apply --safe` komutundan sonra, onaylamak için sınırlı bir süreniz vardır
+(varsayılan: 60 saniye):
 
 ```sh
 mergen confirm
 ```
 
-If you do not run `mergen confirm` within the timeout period, the watchdog
-automatically reverts all changes to the previous state.
+Zaman aşımı süresi içinde `mergen confirm` çalıştırmazsanız, gözetleyici tüm
+değişiklikleri otomatik olarak önceki duruma geri alır.
 
-### 6.2 Manual Rollback
+### 6.2 Manuel Geri Alma
 
-If rules were applied without safe mode but are causing problems, manually
-revert to the previous state:
+Kurallar güvenli mod olmadan uygulanmışsa ancak sorunlara neden oluyorsa, önceki
+duruma manuel olarak geri dönün:
 
 ```sh
 mergen rollback
 ```
 
-This restores the routing tables, nftables sets, and ip rules to the state
-before the last `mergen apply`.
+Bu, yönlendirme tablolarını, nftables kümelerini ve ip kurallarını son
+`mergen apply` öncesindeki duruma geri yükler.
 
-### 6.3 Watchdog Auto-Rollback
+### 6.3 Gözetleyici Otomatik Geri Alma
 
-The watchdog monitors connectivity after an apply operation. If the configured
-ping target becomes unreachable, it triggers an automatic rollback. Check the
-ping target configuration:
+Gözetleyici, bir uygulama işleminden sonra bağlantıyı izler. Yapılandırılmış
+ping hedefi erişilemez hâle gelirse, otomatik geri alma tetiklenir. Ping hedefi
+yapılandırmasını kontrol edin:
 
 ```sh
 uci get mergen.global.safe_mode_ping_target
 ```
 
-The default target is `8.8.8.8`. Change it if your network does not have
-unrestricted access to this address:
+Varsayılan hedef `8.8.8.8`'dir. Ağınız bu adrese sınırsız erişime sahip değilse
+değiştirin:
 
 ```sh
 uci set mergen.global.safe_mode_ping_target='1.1.1.1'
 uci commit mergen
 ```
 
-### 6.4 Adjusting the Confirmation Timeout
+### 6.4 Onay Zaman Aşımını Ayarlama
 
-To change the watchdog timeout (in seconds):
+Gözetleyici zaman aşımını (saniye cinsinden) değiştirmek için:
 
 ```sh
 uci set mergen.global.watchdog_interval='120'
 uci commit mergen
 ```
 
-### 6.5 Emergency Recovery
+### 6.5 Acil Durum Kurtarma
 
-If SSH access is lost after applying rules, reboot the router. Mergen does not
-persist uncommitted (unconfirmed) changes across reboots, so the previous
-working state is restored automatically.
+Kurallar uygulandıktan sonra SSH erişimi kaybedilirse, yönlendiriciyi yeniden
+başlatın. Mergen, onaylanmamış değişiklikleri yeniden başlatmalar arasında
+korumaz, bu nedenle önceki çalışan durum otomatik olarak geri yüklenir.
 
-If the router is unreachable via SSH:
+Yönlendirici SSH ile erişilemezse:
 
-1. Wait for the watchdog timeout to expire (default: 60 seconds).
-2. If auto-rollback does not restore access, perform a physical reboot.
-3. After reboot, verify the state: `mergen status`
+1. Gözetleyici zaman aşımının dolmasını bekleyin (varsayılan: 60 saniye).
+2. Otomatik geri alma erişimi geri yüklemezse, fiziksel bir yeniden başlatma yapın.
+3. Yeniden başlatmadan sonra durumu doğrulayın: `mergen status`
 
 ---
 
-## 7. LuCI Not Showing
+## 7. LuCI Görünmüyor
 
-If the Mergen tab does not appear in the LuCI web interface after installation,
-follow these steps.
+Kurulumdan sonra LuCI web arayüzünde Mergen sekmesi görünmüyorsa, şu adımları
+izleyin.
 
-### 7.1 Verify the Package Is Installed
+### 7.1 Paketin Kurulu Olduğunu Doğrulayın
 
 ```sh
 opkg list-installed | grep luci-app-mergen
 ```
 
-If the package is not listed, install it:
+Paket listede yoksa kurun:
 
 ```sh
 opkg update
 opkg install luci-app-mergen
 ```
 
-### 7.2 Clear Browser Cache
+### 7.2 Tarayıcı Önbelleğini Temizleyin
 
-LuCI caches JavaScript and CSS aggressively. Clear your browser cache or
-perform a hard refresh (Ctrl+Shift+R / Cmd+Shift+R).
+LuCI, JavaScript ve CSS dosyalarını agresif şekilde önbelleğe alır. Tarayıcı
+önbelleğinizi temizleyin veya zorla yenileme yapın (Ctrl+Shift+R / Cmd+Shift+R).
 
-### 7.3 Restart the Web Server
+### 7.3 Web Sunucusunu Yeniden Başlatın
 
 ```sh
 /etc/init.d/uhttpd restart
 ```
 
-After restarting, reload the LuCI interface in your browser.
+Yeniden başlatmadan sonra, tarayıcınızda LuCI arayüzünü yeniden yükleyin.
 
-### 7.4 Check for LuCI Errors
+### 7.4 LuCI Hatalarını Kontrol Edin
 
-If the tab appears but the page fails to load, check for Lua errors:
+Sekme görünüyor ancak sayfa yüklenemiyorsa, Lua hatalarını kontrol edin:
 
 ```sh
 logread | grep -i luci
 logread | grep -i mergen
 ```
 
-### 7.5 Verify File Permissions
+### 7.5 Dosya İzinlerini Doğrulayın
 
-Ensure that the LuCI controller and view files have correct permissions:
+LuCI denetleyici ve görünüm dosyalarının doğru izinlere sahip olduğunu
+doğrulayın:
 
 ```sh
 ls -la /usr/lib/lua/luci/controller/mergen.lua
@@ -562,129 +572,129 @@ ls -la /usr/lib/lua/luci/model/cbi/mergen*.lua
 ls -la /usr/lib/lua/luci/view/mergen/
 ```
 
-All files should be readable (at minimum mode 0644).
+Tüm dosyalar okunabilir olmalıdır (en az mod 0644).
 
 ---
 
-## 8. Log Analysis
+## 8. Log Analizi
 
-Mergen writes structured logs that include a severity level and component name.
-Effective log analysis is the fastest path to diagnosing most issues.
+Mergen, önem derecesi ve bileşen adı içeren yapılandırılmış loglar yazar.
+Etkili log analizi, çoğu sorunun teşhisinde en hızlı yoldur.
 
-### 8.1 View Recent Logs
+### 8.1 Son Logları Görüntüleyin
 
-Display the last 50 error-level log entries:
+Son 50 hata düzeyindeki log girdisini görüntüleyin:
 
 ```sh
 mergen log --tail 50 --level error
 ```
 
-Available log levels, from most to least severe: `error`, `warning`, `info`,
+En şiddetliden en aza doğru mevcut log düzeyleri: `error`, `warning`, `info`,
 `debug`.
 
-To view all log levels:
+Tüm log düzeylerini görüntülemek için:
 
 ```sh
 mergen log --tail 100 --level debug
 ```
 
-### 8.2 Filter by Component
+### 8.2 Bileşene Göre Filtreleyin
 
-Mergen logs are tagged by component (resolver, engine, route, provider, daemon).
-To filter:
+Mergen logları bileşene göre etiketlenir (resolver, engine, route, provider,
+daemon). Filtrelemek için:
 
 ```sh
 mergen log --tail 50 --level info | grep resolver
 mergen log --tail 50 --level info | grep provider
 ```
 
-### 8.3 Check the System Log
+### 8.3 Sistem Logunu Kontrol Edin
 
-Mergen also writes to the OpenWrt system log via syslog:
+Mergen ayrıca syslog üzerinden OpenWrt sistem loguna da yazar:
 
 ```sh
 logread | grep mergen
 ```
 
-For real-time monitoring:
+Gerçek zamanlı izleme için:
 
 ```sh
 logread -f | grep mergen
 ```
 
-### 8.4 Common Log Messages and Their Meaning
+### 8.4 Yaygın Log Mesajları ve Anlamları
 
-| Log Message                                 | Meaning                                          | Action                                      |
-|---------------------------------------------|--------------------------------------------------|---------------------------------------------|
-| `provider timeout`                          | ASN provider did not respond within the deadline  | Check internet connectivity; try next provider |
-| `prefix limit exceeded`                     | A rule resolved to more prefixes than allowed     | Increase `prefix_limit` or reduce the rule scope |
-| `interface down, failover triggered`        | Primary interface lost connectivity               | Check interface status and cables            |
-| `rollback: connectivity check failed`       | Safe mode ping failed after apply                 | Review applied rules for correctness         |
-| `lock acquisition failed`                   | Another Mergen process is holding the lock        | Wait and retry, or check for stale locks     |
-| `nft set creation failed`                   | nftables reported an error creating a set         | Check nftables version compatibility         |
+| Log Mesajı                                  | Anlamı                                              | Eylem                                            |
+|---------------------------------------------|-----------------------------------------------------|--------------------------------------------------|
+| `provider timeout`                          | ASN sağlayıcısı son tarih içinde yanıt vermedi      | İnternet bağlantısını kontrol edin; sonraki sağlayıcıyı deneyin |
+| `prefix limit exceeded`                     | Bir kural izin verilenden fazla ön ek çözümledi      | `prefix_limit` değerini artırın veya kural kapsamını daraltın |
+| `interface down, failover triggered`        | Birincil arayüz bağlantısını kaybetti                | Arayüz durumunu ve kabloları kontrol edin        |
+| `rollback: connectivity check failed`       | Uygulama sonrası güvenli mod ping'i başarısız oldu   | Uygulanan kuralların doğruluğunu gözden geçirin  |
+| `lock acquisition failed`                   | Başka bir Mergen süreci kilidi tutuyor                | Bekleyin ve tekrar deneyin veya eski kilitleri kontrol edin |
+| `nft set creation failed`                   | nftables bir küme oluşturma hatası raporladı          | nftables sürüm uyumluluğunu kontrol edin         |
 
-### 8.5 Generate a Diagnostic Bundle
+### 8.5 Tanı Paketi Oluşturun
 
-For reporting issues, generate a full diagnostic bundle that includes logs,
-configuration, and system state:
+Sorun bildirmek için, logları, yapılandırmayı ve sistem durumunu içeren tam bir
+tanı paketi oluşturun:
 
 ```sh
 mergen diag > /tmp/mergen-diag.txt
 ```
 
-This output includes:
+Bu çıktı şunları içerir:
 
-- Mergen version and configuration
-- Provider health status
-- Active rules and prefix counts
-- Routing table contents
-- nftables/ipset set summaries
-- Recent log entries
-- System memory and OpenWrt version
+- Mergen sürümü ve yapılandırması
+- Sağlayıcı sağlık durumu
+- Aktif kurallar ve ön ek sayıları
+- Yönlendirme tablosu içerikleri
+- nftables/ipset küme özetleri
+- Son log girdileri
+- Sistem belleği ve OpenWrt sürümü
 
-Attach this file when reporting issues upstream.
+Sorunları üst kaynaklara bildirirken bu dosyayı ekleyin.
 
-### 8.6 Check for Stale Lock Files
+### 8.6 Eski Kilit Dosyalarını Kontrol Edin
 
-If Mergen commands hang or report lock errors, a previous process may have
-terminated without releasing the lock:
+Mergen komutları takılıyorsa veya kilit hataları raporluyorsa, önceki bir süreç
+kilidi serbest bırakmadan sonlanmış olabilir:
 
 ```sh
 ls -la /var/lock/mergen.lock
 ```
 
-If the lock file exists but the owning process is no longer running:
+Kilit dosyası mevcutsa ancak sahip süreç artık çalışmıyorsa:
 
 ```sh
 rm /var/lock/mergen.lock
 ```
 
-Then retry your command.
+Ardından komutunuzu yeniden deneyin.
 
 ---
 
-## Quick Reference: Diagnostic Commands
+## Hızlı Başvuru: Tanı Komutları
 
-| Purpose                        | Command                                     |
-|--------------------------------|---------------------------------------------|
-| Overall status                 | `mergen status`                             |
-| List all rules                 | `mergen list`                               |
-| Show rule detail               | `mergen show <name>`                        |
-| Provider health                | `mergen diag`                               |
-| Validate configuration         | `mergen validate`                           |
-| Validate providers             | `mergen validate --check-providers`         |
-| Check mwan3 conflicts          | `mergen diag --mwan3`                       |
-| View error logs                | `mergen log --tail 50 --level error`        |
-| System log                     | `logread \| grep mergen`                    |
-| Routing table                  | `ip route show table 100`                   |
-| IPv6 routing table             | `ip -6 route show table 100`               |
-| IP rules                       | `ip rule show`                              |
-| nftables sets                  | `nft list table inet mergen`                |
-| Interface status               | `ip link show <iface>`                      |
-| Failover state                 | `ls -la /tmp/mergen/failover/`              |
-| Confirm safe mode              | `mergen confirm`                            |
-| Rollback last apply            | `mergen rollback`                           |
-| Flush all Mergen routes        | `mergen flush`                              |
-| Clear provider cache           | `rm -rf /tmp/mergen/cache/*`                |
-| Restart Mergen                 | `/etc/init.d/mergen restart`                |
-| Restart LuCI web server        | `/etc/init.d/uhttpd restart`                |
+| Amaç                               | Komut                                       |
+|------------------------------------|---------------------------------------------|
+| Genel durum                        | `mergen status`                             |
+| Tüm kuralları listele              | `mergen list`                               |
+| Kural detayı göster                | `mergen show <name>`                        |
+| Sağlayıcı sağlığı                 | `mergen diag`                               |
+| Yapılandırmayı doğrula            | `mergen validate`                           |
+| Sağlayıcıları doğrula             | `mergen validate --check-providers`         |
+| mwan3 çatışmalarını kontrol et    | `mergen diag --mwan3`                       |
+| Hata loglarını görüntüle          | `mergen log --tail 50 --level error`        |
+| Sistem logu                        | `logread \| grep mergen`                    |
+| Yönlendirme tablosu               | `ip route show table 100`                   |
+| IPv6 yönlendirme tablosu          | `ip -6 route show table 100`               |
+| IP kuralları                       | `ip rule show`                              |
+| nftables kümeleri                  | `nft list table inet mergen`                |
+| Arayüz durumu                     | `ip link show <iface>`                      |
+| Yedekleme geçiş durumu            | `ls -la /tmp/mergen/failover/`              |
+| Güvenli modu onayla               | `mergen confirm`                            |
+| Son uygulamayı geri al            | `mergen rollback`                           |
+| Tüm Mergen rotalarını temizle     | `mergen flush`                              |
+| Sağlayıcı önbelleğini temizle     | `rm -rf /tmp/mergen/cache/*`                |
+| Mergen'i yeniden başlat           | `/etc/init.d/mergen restart`                |
+| LuCI web sunucusunu yeniden başlat | `/etc/init.d/uhttpd restart`                |

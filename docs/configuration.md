@@ -1,20 +1,22 @@
-# Mergen Configuration Reference
+# Mergen Yapılandırma Referansı
 
-Mergen uses the standard OpenWrt UCI (Unified Configuration Interface) system.
-All configuration resides in a single file:
+[English](configuration.en.md)
+
+Mergen, standart OpenWrt UCI (Unified Configuration Interface) sistemini kullanır.
+Tüm yapılandırma tek bir dosyada bulunur:
 
 ```
 /etc/config/mergen
 ```
 
-This document covers every configurable section and option.
+Bu belge, yapılandırılabilir tüm bölüm ve seçenekleri kapsar.
 
 ---
 
-## 1. Global Section
+## 1. Genel Bölüm
 
-The global section controls daemon behavior, engine selection, safety mechanisms,
-and resource limits. There is exactly one global section.
+Genel bölüm; daemon davranışını, motor seçimini, güvenlik mekanizmalarını
+ve kaynak limitlerini kontrol eder. Tam olarak bir adet genel bölüm bulunur.
 
 ```uci
 config mergen 'global'
@@ -34,45 +36,45 @@ config mergen 'global'
     option config_version '1'
 ```
 
-### Option Reference
+### Seçenek Referansı
 
-| Option                  | Type    | Default        | Description                                                                 |
-|-------------------------|---------|----------------|-----------------------------------------------------------------------------|
-| `enabled`               | boolean | `0`            | Master switch. Set to `1` to activate Mergen.                               |
-| `log_level`             | enum    | `info`         | Logging verbosity. One of: `debug`, `info`, `warning`, `error`.             |
-| `update_interval`       | integer | `86400`        | Seconds between automatic prefix list refreshes (86400 = 24 hours).         |
-| `default_table`         | integer | `100`          | Base routing table number. Each rule gets a table starting from this value.  |
-| `ipv6_enabled`          | boolean | `1`            | Enable IPv6 prefix resolution and routing. Set to `0` for IPv4-only.        |
-| `packet_engine`         | enum    | `auto`         | Packet matching backend. One of: `auto`, `nftables`, `ipset`.               |
-| `mode`                  | enum    | `standalone`   | Operating mode. `standalone` manages routes directly; `mwan3` integrates with mwan3. |
-| `max_prefix_per_rule`   | integer | `10000`        | Maximum number of prefixes a single rule may contain.                       |
-| `max_prefix_total`      | integer | `50000`        | Maximum total prefixes across all rules combined.                           |
-| `watchdog_enabled`      | boolean | `1`            | Enable the watchdog daemon for hotplug events and periodic updates.         |
-| `watchdog_interval`     | integer | `60`           | Watchdog polling interval in seconds.                                       |
-| `safe_mode_ping_target` | IP      | `8.8.8.8`      | Target IP for connectivity verification after `mergen apply --safe`.        |
-| `fallback_strategy`     | enum    | `sequential`   | How fallback interfaces are tried. Currently only `sequential` is supported.|
-| `config_version`        | integer | `1`            | Schema version for configuration migration between Mergen releases.         |
+| Seçenek                 | Tip     | Varsayılan     | Açıklama                                                                          |
+|-------------------------|---------|----------------|-----------------------------------------------------------------------------------|
+| `enabled`               | boolean | `0`            | Ana anahtar. Mergen'i etkinleştirmek için `1` olarak ayarlayın.                   |
+| `log_level`             | enum    | `info`         | Loglama ayrıntısı. Seçenekler: `debug`, `info`, `warning`, `error`.              |
+| `update_interval`       | integer | `86400`        | Otomatik prefix listesi yenileme aralığı (saniye cinsinden, 86400 = 24 saat).    |
+| `default_table`         | integer | `100`          | Temel yönlendirme tablo numarası. Her kural bu değerden başlayan bir tablo alır.  |
+| `ipv6_enabled`          | boolean | `1`            | IPv6 prefix çözümlemesi ve yönlendirmeyi etkinleştirir. Yalnızca IPv4 için `0`.   |
+| `packet_engine`         | enum    | `auto`         | Paket eşleştirme motoru. Seçenekler: `auto`, `nftables`, `ipset`.                |
+| `mode`                  | enum    | `standalone`   | Çalışma modu. `standalone` rotaları doğrudan yönetir; `mwan3` mwan3 ile entegre olur. |
+| `max_prefix_per_rule`   | integer | `10000`        | Tek bir kuralın içerebileceği maksimum prefix sayısı.                             |
+| `max_prefix_total`      | integer | `50000`        | Tüm kurallardaki toplam maksimum prefix sayısı.                                  |
+| `watchdog_enabled`      | boolean | `1`            | Hotplug olayları ve periyodik güncellemeler için watchdog daemon'unu etkinleştirir.|
+| `watchdog_interval`     | integer | `60`           | Watchdog yoklama aralığı (saniye cinsinden).                                     |
+| `safe_mode_ping_target` | IP      | `8.8.8.8`      | `mergen apply --safe` sonrası bağlantı doğrulaması için hedef IP.                |
+| `fallback_strategy`     | enum    | `sequential`   | Yedek arayüzlerin denenme şekli. Şu anda yalnızca `sequential` desteklenir.      |
+| `config_version`        | integer | `1`            | Mergen sürümleri arası yapılandırma taşıma için şema sürümü.                     |
 
-### Notes on `packet_engine`
+### `packet_engine` Hakkında Notlar
 
-- **auto** -- Mergen detects available tools at runtime. Prefers nftables on OpenWrt 23.05+,
-  falls back to ipset on older installations.
-- **nftables** -- Forces nftables sets. Fails if `nft` is not installed.
-- **ipset** -- Forces legacy ipset. Fails if `ipset` is not installed.
+- **auto** -- Mergen, çalışma zamanında mevcut araçları algılar. OpenWrt 23.05+ üzerinde nftables tercih edilir,
+  eski kurulumlarda ipset'e geri döner.
+- **nftables** -- nftables setlerini zorlar. `nft` kurulu değilse başarısız olur.
+- **ipset** -- Eski ipset kullanımını zorlar. `ipset` kurulu değilse başarısız olur.
 
-### Notes on `mode`
+### `mode` Hakkında Notlar
 
-- **standalone** -- Mergen creates and manages its own `ip rule` and `ip route` entries
-  in dedicated routing tables.
-- **mwan3** -- Mergen generates rules compatible with mwan3 policies. Requires mwan3 to
-  be installed and configured separately.
+- **standalone** -- Mergen, ayrılmış yönlendirme tablolarında kendi `ip rule` ve `ip route`
+  girişleri oluşturur ve yönetir.
+- **mwan3** -- Mergen, mwan3 politikalarıyla uyumlu kurallar üretir. mwan3'un ayrı olarak
+  kurulmuş ve yapılandırılmış olması gerekir.
 
 ---
 
-## 2. Rule Sections
+## 2. Kural Bölümleri
 
-Each `config rule` block defines a single routing policy. Rules are unnamed UCI sections
-(anonymous) identified internally by their `name` option, which must be unique.
+Her `config rule` bloğu, tek bir yönlendirme politikası tanımlar. Kurallar isimsiz UCI bölümleridir
+(anonim) ve dahili olarak benzersiz olması gereken `name` seçeneğiyle tanımlanır.
 
 ```uci
 config rule
@@ -85,46 +87,46 @@ config rule
     list tag 'vpn'
 ```
 
-### Option Reference
+### Seçenek Referansı
 
-| Option     | Type    | Required | Default | Description                                                         |
-|------------|---------|----------|---------|---------------------------------------------------------------------|
-| `name`     | string  | yes      | --      | Unique rule identifier. Alphanumeric characters, hyphens, and underscores only. |
-| `via`      | string  | yes      | --      | Target output interface (e.g., `wg0`, `wan`, `eth1`).               |
-| `priority` | integer | no       | `100`   | Routing priority. Range: 1--32000. Lower values are evaluated first.|
-| `enabled`  | boolean | no       | `1`     | Set to `0` to disable the rule without removing it.                 |
-| `fallback` | string  | no       | --      | Fallback interface. Traffic reroutes here if `via` goes down.       |
-| `tag`      | list    | no       | --      | One or more labels for grouping and batch operations.               |
+| Seçenek    | Tip     | Zorunlu | Varsayılan | Açıklama                                                              |
+|------------|---------|---------|------------|-----------------------------------------------------------------------|
+| `name`     | string  | evet    | --         | Benzersiz kural tanımlayıcısı. Yalnızca alfanumerik, tire ve alt çizgi. |
+| `via`      | string  | evet    | --         | Hedef çıkış arayüzü (örneğin `wg0`, `wan`, `eth1`).                  |
+| `priority` | integer | hayır   | `100`      | Yönlendirme önceliği. Aralık: 1--32000. Düşük değerler önce işlenir. |
+| `enabled`  | boolean | hayır   | `1`        | Kuralı kaldırmadan devre dışı bırakmak için `0` olarak ayarlayın.    |
+| `fallback` | string  | hayır   | --         | Yedek arayüz. `via` düşerse trafik buraya yönlendirilir.             |
+| `tag`      | list    | hayır   | --         | Gruplama ve toplu işlemler için bir veya daha fazla etiket.           |
 
-### Target Options (mutually exclusive)
+### Hedef Seçenekleri (birbirini dışlar)
 
-Exactly one of the following target options must be set per rule. For multiple values,
-use `list` syntax instead of `option`.
+Her kuralda aşağıdaki hedef seçeneklerinden tam olarak biri ayarlanmalıdır. Birden fazla değer için
+`option` yerine `list` sözdizimi kullanın.
 
-| Option    | Type          | Description                                                       |
+| Seçenek   | Tip           | Açıklama                                                          |
 |-----------|---------------|-------------------------------------------------------------------|
-| `asn`     | integer/list  | One or more Autonomous System Numbers (e.g., `13335`).            |
-| `ip`      | CIDR/list     | One or more IP/CIDR blocks (e.g., `185.70.40.0/22`).             |
-| `domain`  | string/list   | One or more domain names for DNS-based routing.                   |
-| `country` | string/list   | One or more ISO 3166-1 alpha-2 country codes (e.g., `TR`, `US`). |
+| `asn`     | integer/list  | Bir veya daha fazla Otonom Sistem Numarası (örneğin `13335`).     |
+| `ip`      | CIDR/list     | Bir veya daha fazla IP/CIDR bloğu (örneğin `185.70.40.0/22`).    |
+| `domain`  | string/list   | DNS tabanlı yönlendirme için bir veya daha fazla alan adı.        |
+| `country` | string/list   | Bir veya daha fazla ISO 3166-1 alpha-2 ülke kodu (örneğin `TR`, `US`). |
 
-**Single target** uses `option`, **multiple targets** use `list`:
+**Tek hedef** için `option`, **birden fazla hedef** için `list` kullanılır:
 
 ```uci
-# Single ASN
+# Tek ASN
 config rule
     option name 'cloudflare'
     option asn '13335'
     option via 'wg0'
 
-# Multiple ASNs
+# Birden fazla ASN
 config rule
     option name 'google'
     list asn '15169'
     list asn '36040'
     option via 'wg0'
 
-# Multiple IP blocks
+# Birden fazla IP bloğu
 config rule
     option name 'office-network'
     list ip '10.0.0.0/8'
@@ -134,10 +136,10 @@ config rule
 
 ---
 
-## 3. Provider Sections
+## 3. Sağlayıcı Bölümleri
 
-Provider sections configure the ASN resolution data sources. Mergen queries enabled
-providers in priority order (lowest number first) and uses the first successful result.
+Sağlayıcı bölümleri, ASN çözümleme veri kaynaklarını yapılandırır. Mergen, etkin sağlayıcıları
+öncelik sırasına göre (en düşük numara önce) sorgular ve ilk başarılı sonucu kullanır.
 
 ```uci
 config provider 'ripe'
@@ -158,38 +160,38 @@ config provider 'maxmind'
     option db_path '/usr/share/mergen/GeoLite2-ASN.mmdb'
 ```
 
-### Option Reference
+### Seçenek Referansı
 
-| Option     | Type    | Required | Default | Description                                                         |
-|------------|---------|----------|---------|---------------------------------------------------------------------|
-| `enabled`  | boolean | no       | `0`     | Set to `1` to activate this provider.                               |
-| `priority` | integer | no       | `99`    | Resolution order. Lower values are queried first.                   |
-| `api_url`  | string  | no       | --      | API endpoint URL. Required for network-based providers.             |
-| `timeout`  | integer | no       | `30`    | API request timeout in seconds.                                     |
-| `db_path`  | string  | no       | --      | Local database file path. Used by offline providers like MaxMind.   |
+| Seçenek    | Tip     | Zorunlu | Varsayılan | Açıklama                                                              |
+|------------|---------|---------|------------|-----------------------------------------------------------------------|
+| `enabled`  | boolean | hayır   | `0`        | Sağlayıcıyı etkinleştirmek için `1` olarak ayarlayın.               |
+| `priority` | integer | hayır   | `99`       | Çözümleme sırası. Düşük değerler önce sorgulanır.                    |
+| `api_url`  | string  | hayır   | --         | API ucu URL'si. Ağ tabanlı sağlayıcılar için gereklidir.            |
+| `timeout`  | integer | hayır   | `30`       | API istek zaman aşımı (saniye cinsinden).                            |
+| `db_path`  | string  | hayır   | --         | Yerel veritabanı dosya yolu. MaxMind gibi çevrimdışı sağlayıcılar için. |
 
-### Available Providers
+### Mevcut Sağlayıcılar
 
-| Section ID   | Source               | Notes                                          |
-|--------------|----------------------|------------------------------------------------|
-| `ripe`       | RIPE Stat API        | Official RIR data. Subject to rate limiting.   |
-| `bgptools`   | bgp.tools            | Fast, comprehensive BGP table data.            |
-| `bgpview`    | bgpview.io           | Simple REST API. Subject to rate limiting.     |
-| `maxmind`    | MaxMind GeoLite2     | Offline ASN database. Requires periodic download. |
-| `routeviews` | RouteViews           | Full MRT/RIB dumps. Most comprehensive but heavy. |
-| `irr`        | IRR / RADB           | Whois-based queries against routing registries.|
+| Bölüm ID     | Kaynak               | Notlar                                                  |
+|--------------|----------------------|---------------------------------------------------------|
+| `ripe`       | RIPE Stat API        | Resmi RIR verisi. İstek hızı sınırlamasına tabidir.     |
+| `bgptools`   | bgp.tools            | Hızlı, kapsamlı BGP tablo verisi.                       |
+| `bgpview`    | bgpview.io           | Basit REST API. İstek hızı sınırlamasına tabidir.       |
+| `maxmind`    | MaxMind GeoLite2     | Çevrimdışı ASN veritabanı. Periyodik indirme gerektirir.|
+| `routeviews` | RouteViews           | Tam MRT/RIB dökümleri. En kapsamlı ama ağır.            |
+| `irr`        | IRR / RADB           | Yönlendirme sicillerine karşı whois tabanlı sorgular.   |
 
-When a provider fails (timeout, HTTP error, empty response), Mergen automatically
-tries the next enabled provider according to the `fallback_strategy` setting.
+Bir sağlayıcı başarısız olduğunda (zaman aşımı, HTTP hatası, boş yanıt), Mergen otomatik olarak
+`fallback_strategy` ayarına göre sıradaki etkin sağlayıcıyı dener.
 
 ---
 
-## 4. Example Configurations
+## 4. Örnek Yapılandırmalar
 
-### 4.1 VPN Split Routing
+### 4.1 VPN Bölünmüş Yönlendirme
 
-Route specific services through a WireGuard tunnel while keeping default traffic
-on the primary WAN interface.
+Belirli hizmetleri bir WireGuard tüneli üzerinden yönlendirirken varsayılan trafiği
+birincil WAN arayüzünde tutun.
 
 ```uci
 config mergen 'global'
@@ -239,7 +241,7 @@ config rule
     list tag 'vpn'
 ```
 
-Equivalent CLI commands:
+Eşdeğer CLI komutları:
 
 ```sh
 mergen add --name cloudflare --asn 13335 --via wg0 --fallback wan
@@ -248,10 +250,10 @@ mergen add --name protonmail --ip 185.70.40.0/22 --via wg0
 mergen apply
 ```
 
-### 4.2 Country-Based Routing
+### 4.2 Ülke Tabanlı Yönlendirme
 
-Keep domestic traffic on the primary WAN connection and route everything else
-through a VPN.
+Yurt içi trafiği birincil WAN bağlantısında tutun ve geri kalan her şeyi
+bir VPN üzerinden yönlendirin.
 
 ```uci
 config rule
@@ -263,20 +265,20 @@ config rule
     list tag 'geo'
 ```
 
-Equivalent CLI command:
+Eşdeğer CLI komutu:
 
 ```sh
 mergen add --name domestic-direct --country TR --via wan
 mergen apply
 ```
 
-Combined with a default VPN route (configured outside Mergen at the OS level),
-this ensures that all resolved Turkish ASN prefixes bypass the tunnel.
+Varsayılan bir VPN rotasıyla birleştirildiğinde (Mergen dışında işletim sistemi seviyesinde yapılandırılır),
+bu, çözümlenen tüm Türkiye ASN prefix'lerinin tüneli atlamasını sağlar.
 
-### 4.3 DNS-Based Routing
+### 4.3 DNS Tabanlı Yönlendirme
 
-Route traffic to specific domains through a designated interface using
-dnsmasq nftset/ipset integration.
+Belirli alan adlarına yönelik trafiği, dnsmasq nftset/ipset entegrasyonu kullanarak
+belirlenmiş bir arayüz üzerinden yönlendirin.
 
 ```uci
 config rule
@@ -290,21 +292,20 @@ config rule
     list tag 'media'
 ```
 
-Equivalent CLI command:
+Eşdeğer CLI komutu:
 
 ```sh
 mergen add --name streaming --domain netflix.com,hulu.com,disneyplus.com --via wg0
 mergen apply
 ```
 
-DNS-based rules work by inserting nftset or ipset directives into the dnsmasq
-configuration. Resolved IP addresses are dynamically added to the matching set
-as DNS queries occur.
+DNS tabanlı kurallar, dnsmasq yapılandırmasına nftset veya ipset direktifleri ekleyerek çalışır.
+Çözümlenen IP adresleri, DNS sorguları gerçekleştikçe dinamik olarak ilgili sete eklenir.
 
-### 4.4 Multi-WAN with Failover
+### 4.4 Çoklu WAN ve Yedekleme
 
-Split traffic across two WAN links with automatic failover when an interface
-goes down.
+Trafiği iki WAN bağlantısı arasında bölerek, bir arayüz düşerse otomatik
+yedekleme sağlama.
 
 ```uci
 config mergen 'global'
@@ -335,47 +336,47 @@ config rule
     list tag 'cdn'
 ```
 
-When `wan_fiber` goes down, the watchdog detects the interface state change
-via hotplug and reroutes `work-traffic` through `wan_lte`. When `wan_fiber`
-recovers, traffic is moved back automatically.
+`wan_fiber` düşerse, watchdog hotplug aracılığıyla arayüz durum değişikliğini algılar
+ve `work-traffic` trafiğini `wan_lte` üzerinden yönlendirir. `wan_fiber`
+tekrar devreye girdiğinde, trafik otomatik olarak geri taşınır.
 
 ---
 
-## 5. File Locations
+## 5. Dosya Konumları
 
-| Path                        | Description                                    |
-|-----------------------------|------------------------------------------------|
-| `/etc/config/mergen`        | UCI configuration file (permissions: 0600)     |
-| `/tmp/mergen/cache/`        | Cached ASN prefix lists                        |
-| `/tmp/mergen/status.json`   | Runtime status (watchdog state, rule counts)   |
-| `/var/lock/mergen.lock`     | Process lock for concurrent access control     |
-| `/etc/mergen/providers/`    | Provider plugin scripts                        |
-| `/etc/mergen/rules.d/`      | Directory for JSON rule import files           |
-| `/usr/lib/mergen/`          | Core library modules                           |
-| `/usr/bin/mergen`           | CLI binary                                     |
-| `/usr/sbin/mergen-watchdog` | Watchdog daemon                                |
+| Yol                         | Açıklama                                             |
+|-----------------------------|------------------------------------------------------|
+| `/etc/config/mergen`        | UCI yapılandırma dosyası (izinler: 0600)             |
+| `/tmp/mergen/cache/`        | Önbelleğlenmiş ASN prefix listeleri                  |
+| `/tmp/mergen/status.json`   | Çalışma zamanı durumu (watchdog durumu, kural sayıları) |
+| `/var/lock/mergen.lock`     | Eşanlı erişim kontrolü için işlem kilidi             |
+| `/etc/mergen/providers/`    | Sağlayıcı eklenti betikleri                          |
+| `/etc/mergen/rules.d/`      | JSON kural içeri aktarma dosyaları için dizin         |
+| `/usr/lib/mergen/`          | Çekirdek kütüphane modülleri                         |
+| `/usr/bin/mergen`           | CLI uygulaması                                       |
+| `/usr/sbin/mergen-watchdog` | Watchdog daemon'u                                    |
 
 ---
 
-## 6. Applying Changes
+## 6. Değişikliklerin Uygulanması
 
-Editing `/etc/config/mergen` directly or through `uci` commands does not activate
-routing rules. After any configuration change, run:
+`/etc/config/mergen` dosyasını doğrudan veya `uci` komutları aracılığıyla düzenlemek
+yönlendirme kurallarını etkinleştirmez. Herhangi bir yapılandırma değişikliğinden sonra şu komutu çalıştırın:
 
 ```sh
 mergen apply
 ```
 
-For safe application with automatic rollback on connectivity loss:
+Bağlantı kesilmesi durumunda otomatik geri alma ile güvenli uygulama için:
 
 ```sh
 mergen apply --safe
 ```
 
-Safe mode verifies connectivity by pinging `safe_mode_ping_target` after applying
-rules. If the ping fails within 60 seconds, all changes are rolled back automatically.
+Güvenli mod, kuralları uyguladıktan sonra `safe_mode_ping_target` adresine ping atarak
+bağlantıyı doğrular. Ping 60 saniye içinde başarısız olursa, tüm değişiklikler otomatik olarak geri alınır.
 
-To validate configuration without applying:
+Yapılandırmayı uygulamadan doğrulamak için:
 
 ```sh
 mergen validate
