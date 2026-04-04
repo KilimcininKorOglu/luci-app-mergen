@@ -197,7 +197,20 @@ PROVEOF
 	chmod +x "${_TEST_TMPDIR}/providers/mock.sh"
 }
 
-# ── Setup/Teardown ──────────────────────────────────────
+# ── One-Time Setup/Teardown ─────────────────────────────
+
+oneTimeSetUp() {
+	_TEST_TMPDIR="$(mktemp -d)"
+	mkdir -p "${_TEST_TMPDIR}/providers"
+	mkdir -p "${_TEST_TMPDIR}/cache"
+}
+
+oneTimeTearDown() {
+	[ -n "$_TEST_TMPDIR" ] && [ -d "$_TEST_TMPDIR" ] && rm -rf "$_TEST_TMPDIR"
+	return 0
+}
+
+# ── Per-Test Setup/Teardown ─────────────────────────────
 
 setUp() {
 	_MOCK_UCI_STORE=""
@@ -213,10 +226,9 @@ setUp() {
 	MERGEN_ROUTE_APPLIED_COUNT=0
 	MERGEN_ROUTE_FAILED_COUNT=0
 
-	# Create temp directory structure
-	_TEST_TMPDIR="$(mktemp -d)"
-	mkdir -p "${_TEST_TMPDIR}/providers"
-	mkdir -p "${_TEST_TMPDIR}/cache"
+	# Clean all temp contents between tests, recreate structure
+	rm -rf "${_TEST_TMPDIR:?}/"*
+	mkdir -p "${_TEST_TMPDIR}/providers" "${_TEST_TMPDIR}/cache"
 
 	# Override module globals
 	MERGEN_PROVIDERS_DIR="${_TEST_TMPDIR}/providers"
@@ -233,9 +245,6 @@ setUp() {
 }
 
 tearDown() {
-	if [ -n "$_TEST_TMPDIR" ] && [ -d "$_TEST_TMPDIR" ]; then
-		rm -rf "$_TEST_TMPDIR"
-	fi
 	return 0
 }
 

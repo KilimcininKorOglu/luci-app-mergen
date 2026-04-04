@@ -24,7 +24,7 @@ jobs:
             mergen/files/usr/bin/mergen \
             mergen/files/usr/sbin/mergen-watchdog
 
-  test:
+  unit-test:
     name: Unit Tests
     runs-on: ubuntu-latest
     needs: lint
@@ -39,7 +39,17 @@ jobs:
       - name: Run unit tests
         run: |
           cd mergen/tests
-          sh run_all.sh --verbose 2>&1
+          for f in test_core.sh test_utils.sh test_cache.sh test_engine.sh \
+                   test_nftables.sh test_ipset.sh test_resolver.sh test_route.sh \
+                   test_tags.sh test_conflicts.sh test_aggregation.sh test_rollback.sh \
+                   test_import_export.sh test_logging.sh test_safe_mode.sh test_migrate.sh \
+                   test_watchdog.sh test_ipv6.sh test_hotplug.sh test_cli.sh \
+                   test_provider_fallback.sh test_provider_phase3.sh \
+                   test_ripe_provider.sh test_bgpview_provider.sh test_bgptools_provider.sh \
+                   test_irr_provider.sh test_maxmind_provider.sh test_routeviews_provider.sh; do
+            echo "--- $f ---"
+            sh "$f" 2>&1 || exit 1
+          done
 
       - name: Run performance tests
         run: |
@@ -51,10 +61,31 @@ jobs:
           cd mergen/tests
           sh test_platform.sh 2>&1
 
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nftables ipset
+
+      - name: Run integration tests
+        run: |
+          cd mergen/tests
+          for f in test_integration_nftables.sh test_integration_rollback.sh \
+                   test_integration_logging.sh; do
+            echo "--- $f ---"
+            sh "$f" 2>&1 || exit 1
+          done
+
   build:
     name: Package Build Check
     runs-on: ubuntu-latest
-    needs: test
+    needs: [unit-test, integration-test]
     steps:
       - uses: actions/checkout@v4
 
@@ -100,12 +131,13 @@ jobs:
   summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [lint, test, build]
+    needs: [lint, unit-test, integration-test, build]
     if: always()
     steps:
       - name: Report
         run: |
           echo "=== CI Pipeline Complete ==="
-          echo "Lint:  ${{ needs.lint.result }}"
-          echo "Test:  ${{ needs.test.result }}"
-          echo "Build: ${{ needs.build.result }}"
+          echo "Lint:        ${{ needs.lint.result }}"
+          echo "Unit Tests:  ${{ needs.unit-test.result }}"
+          echo "Integration: ${{ needs.integration-test.result }}"
+          echo "Build:       ${{ needs.build.result }}"

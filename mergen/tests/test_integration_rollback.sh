@@ -225,7 +225,21 @@ MERGEN_NFT_AVAILABLE="0"
 MERGEN_IPSET_AVAILABLE="0"
 MERGEN_ENGINE_ACTIVE=""
 
-# ── Setup/Teardown ──────────────────────────────────────
+# ── One-Time Setup/Teardown ─────────────────────────────
+
+oneTimeSetUp() {
+	_TEST_TMPDIR="$(mktemp -d)"
+	mkdir -p "${_TEST_TMPDIR}/providers"
+	mkdir -p "${_TEST_TMPDIR}/cache"
+	mkdir -p "${_TEST_TMPDIR}/snapshot"
+}
+
+oneTimeTearDown() {
+	[ -n "$_TEST_TMPDIR" ] && [ -d "$_TEST_TMPDIR" ] && rm -rf "$_TEST_TMPDIR"
+	return 0
+}
+
+# ── Per-Test Setup/Teardown ─────────────────────────────
 
 setUp() {
 	_MOCK_UCI_STORE=""
@@ -238,10 +252,12 @@ setUp() {
 	MERGEN_ENGINE_ACTIVE=""
 	MERGEN_FORCE_APPLY=0
 
-	_TEST_TMPDIR="$(mktemp -d)"
-	mkdir -p "${_TEST_TMPDIR}/providers"
-	mkdir -p "${_TEST_TMPDIR}/cache"
-	mkdir -p "${_TEST_TMPDIR}/snapshot"
+	# Clean all temp contents between tests, recreate structure
+	rm -rf "${_TEST_TMPDIR:?}/"*
+	mkdir -p "${_TEST_TMPDIR}/providers" "${_TEST_TMPDIR}/cache" "${_TEST_TMPDIR}/snapshot"
+
+	# Re-source route.sh to restore function overrides from previous tests
+	. "${MERGEN_ROOT}/files/usr/lib/mergen/route.sh"
 
 	MERGEN_PROVIDERS_DIR="${_TEST_TMPDIR}/providers"
 	MERGEN_CACHE_DIR="${_TEST_TMPDIR}/cache"
@@ -259,13 +275,10 @@ setUp() {
 	# Reset log level cache
 	MERGEN_LOG_LEVEL=""
 	MERGEN_LOG_LEVEL_NUM=""
-
-	# Re-source route.sh to restore any function overrides from previous tests
-	. "${MERGEN_ROOT}/files/usr/lib/mergen/route.sh"
 }
 
 tearDown() {
-	[ -n "$_TEST_TMPDIR" ] && [ -d "$_TEST_TMPDIR" ] && rm -rf "$_TEST_TMPDIR"
+	:
 }
 
 # ── Integration Tests ──────────────────────────────────
