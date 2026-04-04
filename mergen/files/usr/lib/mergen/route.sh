@@ -1990,7 +1990,8 @@ mergen_dnsmasq_apply() {
 	cat > "$conf_file" <<DNSMASQEOF
 # Mergen DNS-based routing: ${rule_name}
 # Auto-generated — do not edit manually
-${dnsmasq_lines}DNSMASQEOF
+${dnsmasq_lines}
+DNSMASQEOF
 
 	mergen_log "info" "DNS" "dnsmasq yapılandırması yazıldı: ${conf_file}"
 
