@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify version consistency
+        run: |
+          TAG_VERSION="${{ steps.version.outputs.VERSION }}"
+          CLI_VERSION=$(grep 'MERGEN_VERSION=' mergen/files/usr/bin/mergen | head -1 | cut -d'"' -f2)
+          echo "Tag version: ${TAG_VERSION}"
+          echo "CLI version: ${CLI_VERSION}"
+          if [ "$TAG_VERSION" != "$CLI_VERSION" ]; then
+            echo "WARNING: Tag version does not match CLI version"
+          fi
+
+      - name: Run tests
+        run: |
+          cd mergen/tests
+          sh test_platform.sh 2>&1
+          sh test_performance.sh 2>&1
+
+      - name: Create release archive
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          tar -czf "mergen-${VERSION}.tar.gz" \
+            mergen/files/ mergen/Makefile \
+            luci-app-mergen/ \
+            docs/ \
+            LICENSE 2>/dev/null || true
+          echo "Archive created: mergen-${VERSION}.tar.gz"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: mergen-*.tar.gz
+          generate_release_notes: true
+          draft: false
+          prerelease: false
