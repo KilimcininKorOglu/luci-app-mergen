@@ -36,6 +36,12 @@ rp.default = "100"
 rp.datatype = "range(1,32000)"
 rp.placeholder = "100"
 
+md = s:taboption("routing", ListValue, "mode",
+	translate("Operating Mode"))
+md:value("standalone", translate("Standalone") .. " (" .. translate("recommended") .. ")")
+md:value("mwan3", translate("mwan3 Integration"))
+md.default = "standalone"
+
 -- ── Packet Engine ──────────────────────────────────────
 
 s:tab("engine", translate("Packet Engine"))

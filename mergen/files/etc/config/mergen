@@ -9,6 +9,7 @@ config mergen 'global'
 	option watchdog_interval '60'
 	option safe_mode_ping_target '8.8.8.8'
 	option fallback_strategy 'sequential'
+	option mode 'standalone'
 	option config_version '1'
 
 config provider 'ripe'

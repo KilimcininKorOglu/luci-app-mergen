@@ -489,3 +489,12 @@ msgstr "Yedek Arayüz"
 
 msgid "-- None --"
 msgstr "-- Yok --"
+
+msgid "Operating Mode"
+msgstr "Çalışma Modu"
+
+msgid "Standalone"
+msgstr "Bağımsız"
+
+msgid "mwan3 Integration"
+msgstr "mwan3 Entegrasyonu"

@@ -198,13 +198,15 @@ HELP
 			;;
 		diag)
 			cat <<'HELP'
-Kullanim: mergen diag [--asn <ASN>]
+Kullanim: mergen diag [--asn <ASN>] [--mwan3]
 
 Sistem tani bilgilerini gosterir: routing tablolari, nft/ipset setleri,
 arayuz durumlari ve paket motoru bilgisi.
 
 Secenekler:
   --asn <ASN>    Belirtilen ASN icin prefix cozumleme testi yap
+  --mwan3        mwan3 uyumluluk raporu goster (cakisma tespiti,
+                 arayuz listesi, politika sayisi)
 HELP
 			;;
 		log)
@@ -1144,6 +1146,7 @@ cmd_flush() {
 
 cmd_diag() {
 	local test_asn=""
+	local check_mwan3=0
 
 	while [ $# -gt 0 ]; do
 		case "$1" in
@@ -1151,12 +1154,21 @@ cmd_diag() {
 				[ -z "$2" ] && { echo "[!] Hata: --asn degeri gerekli." >&2; return 2; }
 				test_asn="$2"; shift 2
 				;;
+			--mwan3)
+				check_mwan3=1; shift
+				;;
 			*)
 				printf "[!] Hata: Bilinmeyen secenek '%s'. 'mergen help diag' ile kullanimi gorun.\n" "$1" >&2
 				return 2
 				;;
 		esac
 	done
+
+	# If --mwan3, show only mwan3 diagnostics
+	if [ "$check_mwan3" = "1" ]; then
+		mergen_mwan3_diag
+		return $?
+	fi
 
 	cmd_version
 	echo ""

@@ -415,6 +415,22 @@ mergen_route_apply_all() {
 	MERGEN_ROUTE_APPLIED_COUNT=0
 	MERGEN_ROUTE_FAILED_COUNT=0
 
+	# Check operating mode
+	local mode
+	mode="$(mergen_get_mode)"
+	if [ "$mode" = "mwan3" ]; then
+		mergen_log "info" "Route" "mwan3 modunda çalışılıyor, kurallar mwan3'e yazılıyor..."
+		mergen_mwan3_apply
+		return $?
+	fi
+
+	# Standalone mode: check for mwan3 conflicts
+	if mergen_mwan3_installed; then
+		if mergen_mwan3_detect_conflicts; then
+			mergen_log "warning" "Route" "mwan3 ile routing tablo çakışması tespit edildi:${MERGEN_MWAN3_CONFLICTS}"
+		fi
+	fi
+
 	mergen_log "info" "Route" "Tüm kurallar uygulanıyor..."
 
 	_apply_all_cb() {
@@ -2149,4 +2165,247 @@ mergen_failover_original_via() {
 		return 0
 	fi
 	return 1
+}
+
+# ── mwan3 Integration ────────────────────────────────────
+
+# Check if mwan3 is installed and active
+# Returns 0 if mwan3 is present, 1 otherwise
+mergen_mwan3_installed() {
+	[ -f /etc/config/mwan3 ] && command -v mwan3 >/dev/null 2>&1
+}
+
+# Get current operating mode (standalone or mwan3)
+# Returns the mode string
+mergen_get_mode() {
+	mergen_uci_get "global" "mode" "standalone"
+	echo "$MERGEN_UCI_RESULT"
+}
+
+# Detect mwan3 routing tables to avoid conflicts
+# Prints conflicting table numbers, returns 0 if conflicts found, 1 if clean
+MERGEN_MWAN3_CONFLICTS=""
+
+mergen_mwan3_detect_conflicts() {
+	MERGEN_MWAN3_CONFLICTS=""
+
+	if ! mergen_mwan3_installed; then
+		return 1
+	fi
+
+	mergen_uci_get "global" "default_table" "100"
+	local mergen_base="$MERGEN_UCI_RESULT"
+
+	# Count mergen rules to determine table range
+	local mergen_count
+	mergen_count="$(mergen_count_rules)"
+	local mergen_end=$((mergen_base + mergen_count))
+
+	# Read mwan3 interfaces and their routing tables
+	local conflicts=""
+	local has_conflict=0
+
+	_mwan3_iface_check() {
+		local section="$1"
+		local rtable
+		config_get rtable "$section" "rtable" ""
+		[ -z "$rtable" ] && return 0
+
+		if [ "$rtable" -ge "$mergen_base" ] && [ "$rtable" -le "$mergen_end" ]; then
+			conflicts="${conflicts} ${section}(tablo:${rtable})"
+			has_conflict=1
+		fi
+	}
+
+	config_load "mwan3"
+	config_foreach _mwan3_iface_check "interface"
+
+	MERGEN_MWAN3_CONFLICTS="$conflicts"
+	[ "$has_conflict" -eq 1 ] && return 0
+	return 1
+}
+
+# Write Mergen rules into mwan3 configuration
+# Creates mwan3 rules and policies for each enabled Mergen rule
+# Usage: mergen_mwan3_apply
+mergen_mwan3_apply() {
+	if ! mergen_mwan3_installed; then
+		mergen_log "error" "mwan3" "[!] Hata: mwan3 kurulu değil."
+		return 1
+	fi
+
+	mergen_log "info" "mwan3" "Mergen kuralları mwan3'e yazılıyor..."
+
+	# Clean existing mergen-managed mwan3 rules
+	_mwan3_clean_mergen_rules
+
+	local applied=0
+
+	_mwan3_apply_cb() {
+		local section="$1"
+		local name enabled via type targets
+		config_get name "$section" "name" ""
+		config_get enabled "$section" "enabled" "1"
+		config_get via "$section" "via" ""
+		config_get type "$section" "type" "asn"
+
+		[ "$enabled" != "1" ] && return 0
+		[ -z "$name" ] || [ -z "$via" ] && return 0
+
+		local mwan3_rule="mergen_${name}"
+
+		# Create mwan3 policy: route to the specified interface
+		uci set "mwan3.${mwan3_rule}_policy=policy"
+		uci set "mwan3.${mwan3_rule}_policy.last_resort=default"
+		uci add_list "mwan3.${mwan3_rule}_policy.use_member=${via}_m1_w1"
+
+		# For IP-type rules, create mwan3 rules for each prefix
+		if [ "$type" = "ip" ]; then
+			config_get targets "$section" "ip" ""
+			local idx=0
+			local target_item
+			for target_item in $targets; do
+				[ -z "$target_item" ] && continue
+				local rule_id="${mwan3_rule}_r${idx}"
+				uci set "mwan3.${rule_id}=rule"
+				uci set "mwan3.${rule_id}.dest_ip=${target_item}"
+				uci set "mwan3.${rule_id}.proto=all"
+				uci set "mwan3.${rule_id}.use_policy=${mwan3_rule}_policy"
+				uci set "mwan3.${rule_id}.comment=mergen:${name}"
+				idx=$((idx + 1))
+			done
+		else
+			# For ASN/domain/country rules, use the resolved prefixes
+			# Create a catch-all rule pointing to our policy — requires nft/ipset set matching
+			local rule_id="${mwan3_rule}_r0"
+			uci set "mwan3.${rule_id}=rule"
+			uci set "mwan3.${rule_id}.proto=all"
+			uci set "mwan3.${rule_id}.use_policy=${mwan3_rule}_policy"
+			uci set "mwan3.${rule_id}.comment=mergen:${name}:${type}"
+		fi
+
+		applied=$((applied + 1))
+	}
+
+	config_load "$MERGEN_CONF"
+	config_foreach _mwan3_apply_cb "rule"
+
+	uci commit "mwan3"
+
+	# Reload mwan3
+	if [ -x /etc/init.d/mwan3 ]; then
+		/etc/init.d/mwan3 restart >/dev/null 2>&1
+	fi
+
+	mergen_log "info" "mwan3" "${applied} kural mwan3'e yazıldı."
+	return 0
+}
+
+# Remove mergen-managed rules from mwan3 config
+_mwan3_clean_mergen_rules() {
+	# Remove all mwan3 sections that start with "mergen_"
+	local sections_to_delete=""
+
+	_collect_mergen_mwan3() {
+		local section="$1"
+		case "$section" in
+			mergen_*) sections_to_delete="${sections_to_delete} ${section}" ;;
+		esac
+	}
+
+	config_load "mwan3"
+	config_foreach _collect_mergen_mwan3 "policy"
+	config_foreach _collect_mergen_mwan3 "rule"
+
+	local sect
+	for sect in $sections_to_delete; do
+		uci delete "mwan3.${sect}" 2>/dev/null
+	done
+
+	[ -n "$sections_to_delete" ] && uci commit "mwan3"
+}
+
+# Run mwan3 compatibility diagnostics
+# Prints a comprehensive report
+mergen_mwan3_diag() {
+	echo "=== mwan3 Uyumluluk Raporu ==="
+	echo ""
+
+	# Check installation
+	if ! mergen_mwan3_installed; then
+		echo "[*] mwan3 durumu: KURULU DEĞİL"
+		echo ""
+		echo "mwan3 kurulu değil. Mergen standalone modda çalışıyor."
+		echo "mwan3 entegrasyonu için: opkg install mwan3"
+		return 0
+	fi
+
+	echo "[*] mwan3 durumu: KURULU"
+	local mwan3_ver
+	mwan3_ver="$(opkg info mwan3 2>/dev/null | grep "^Version:" | cut -d' ' -f2)"
+	[ -n "$mwan3_ver" ] && printf "    Sürüm: %s\n" "$mwan3_ver"
+	echo ""
+
+	# Current mode
+	local mode
+	mode="$(mergen_get_mode)"
+	printf "[*] Mergen modu: %s\n" "$mode"
+	echo ""
+
+	# mwan3 interfaces
+	echo "[*] mwan3 Arayüzleri:"
+	_diag_mwan3_iface() {
+		local section="$1"
+		local enabled rtable
+		config_get enabled "$section" "enabled" "1"
+		config_get rtable "$section" "rtable" ""
+		local state_mark="+"
+		[ "$enabled" != "1" ] && state_mark="-"
+		printf "    %s %-16s tablo: %s\n" "$state_mark" "$section" "${rtable:-auto}"
+	}
+	config_load "mwan3"
+	config_foreach _diag_mwan3_iface "interface"
+	echo ""
+
+	# Conflict detection
+	echo "[*] Çakışma Kontrolü:"
+	if mergen_mwan3_detect_conflicts; then
+		echo "    [!] ÇAKIŞMA TESPİT EDİLDİ!"
+		echo "    Çakışan mwan3 arayüzleri:${MERGEN_MWAN3_CONFLICTS}"
+		echo ""
+		echo "    Çözüm: Mergen global ayarlarında default_table değerini"
+		echo "    mwan3 routing tablolarıyla çakışmayacak şekilde ayarlayın."
+	else
+		echo "    [+] Çakışma yok. Routing tablo aralıkları bağımsız."
+	fi
+	echo ""
+
+	# mwan3 policies managed by mergen
+	local mergen_policies=0
+	_count_mergen_policies() {
+		local section="$1"
+		case "$section" in
+			mergen_*) mergen_policies=$((mergen_policies + 1)) ;;
+		esac
+	}
+	config_load "mwan3"
+	config_foreach _count_mergen_policies "policy"
+
+	echo "[*] Mergen mwan3 Politikaları: ${mergen_policies}"
+	if [ "$mergen_policies" -gt 0 ]; then
+		echo "    mwan3 yapılandırmasında Mergen tarafından yönetilen politikalar var."
+	fi
+	echo ""
+
+	# mwan3 service status
+	echo "[*] mwan3 Servis Durumu:"
+	if [ -f /var/run/mwan3.pid ] && kill -0 "$(cat /var/run/mwan3.pid 2>/dev/null)" 2>/dev/null; then
+		echo "    Servis: aktif"
+	elif pgrep -f mwan3 >/dev/null 2>&1; then
+		echo "    Servis: aktif (pid dosyası yok)"
+	else
+		echo "    Servis: devre dışı"
+	fi
+
+	return 0
 }

@@ -9,9 +9,9 @@
 
 | Status      | Count | Percentage |
 |-------------|-------|------------|
-| NOT_STARTED | 4     | 8%         |
+| NOT_STARTED | 3     | 6%         |
 | IN_PROGRESS | 0     | 0%         |
-| COMPLETED   | 45    | 92%        |
+| COMPLETED   | 46    | 94%        |
 | BLOCKED     | 0     | 0%         |
 | AT_RISK     | 0     | 0%         |
 
@@ -31,7 +31,7 @@
 | F010    | Import/Export & Automation      | Phase 3 | 4     | COMPLETED   |
 | F011    | LuCI Core Pages                 | Phase 4 | 4     | COMPLETED   |
 | F012    | LuCI Advanced Pages             | Phase 5 | 4     | COMPLETED   |
-| F013    | Advanced Features               | Phase 6 | 4     | NOT_STARTED |
+| F013    | Advanced Features               | Phase 6 | 4     | COMPLETED   |
 | F014    | Distribution & QA               | Phase 6 | 3     | NOT_STARTED |
 
 ## Task Detail
@@ -110,7 +110,7 @@
 | T042 | F013    | DNS-Based Routing                 | P3       | 3d     | COMPLETED   | T017, T018   |
 | T043 | F013    | Country-Based Routing             | P3       | 2d     | COMPLETED   | T024, T010   |
 | T044 | F013    | Traffic Statistics & Failover     | P3       | 3d     | COMPLETED   | T017, T012   |
-| T045 | F013    | mwan3 Integration                 | P4       | 2d     | NOT_STARTED | T008         |
+| T045 | F013    | mwan3 Integration                 | P4       | 2d     | COMPLETED   | T008         |
 | T046 | F014    | Performance & Platform Testing    | P2       | 3d     | NOT_STARTED | T017, T027   |
 | T047 | F014    | Documentation & Feed Submission   | P2       | 2.5d   | NOT_STARTED | T046         |
 | T049 | F014    | GitHub Actions CI/CD Pipeline     | P2       | 1d     | NOT_STARTED | T013         |
