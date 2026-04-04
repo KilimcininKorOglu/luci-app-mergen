@@ -153,6 +153,10 @@ setUp() {
 	MERGEN_UCI_RESULT=""
 	MERGEN_UCI_LIST_RESULT=""
 
+	# Override lock path for test environments (macOS lacks /var/lock)
+	MERGEN_LOCK="/tmp/mergen-test.lock"
+	rm -f "$MERGEN_LOCK"
+
 	# Set up default config
 	_mock_uci_set "mergen.global.enabled=1"
 	_mock_uci_set "mergen.global.log_level=info"

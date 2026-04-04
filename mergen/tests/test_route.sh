@@ -211,6 +211,165 @@ $*"
 	esac
 }
 
+# ── Mock nft Command ───────────────────────────────────
+
+_NFT_TABLES=""
+_NFT_CHAINS=""
+_NFT_SETS=""
+_NFT_SET_ELEMENTS=""
+_NFT_RULES=""
+_NFT_BATCH_CONTENT=""
+_NFT_MOCK_FAIL=0
+
+nft() {
+	if [ "$_NFT_MOCK_FAIL" -eq 1 ]; then
+		return 1
+	fi
+
+	case "$1" in
+		add)
+			case "$2" in
+				table)
+					_NFT_TABLES="${_NFT_TABLES} ${3}:${4}"
+					return 0
+					;;
+				chain)
+					_NFT_CHAINS="${_NFT_CHAINS} ${3}:${4}:${5}"
+					return 0
+					;;
+				set)
+					local family="$3" table="$4" setname="$5"
+					_NFT_SETS="${_NFT_SETS} ${family}:${table}:${setname}"
+					return 0
+					;;
+				element)
+					local family="$3" table="$4" setname="$5"
+					shift 5
+					local elements="$*"
+					_NFT_SET_ELEMENTS="${_NFT_SET_ELEMENTS}|${family}:${table}:${setname}=${elements}"
+					return 0
+					;;
+				rule)
+					shift 2
+					_NFT_RULES="${_NFT_RULES}|$*"
+					return 0
+					;;
+			esac
+			;;
+		delete)
+			case "$2" in
+				table)
+					_NFT_TABLES=""
+					_NFT_CHAINS=""
+					_NFT_SETS=""
+					_NFT_SET_ELEMENTS=""
+					_NFT_RULES=""
+					return 0
+					;;
+				set)
+					local family="$3" table="$4" setname="$5"
+					_NFT_SETS="$(echo "$_NFT_SETS" | sed "s| ${family}:${table}:${setname}||g")"
+					return 0
+					;;
+				rule)
+					return 0
+					;;
+			esac
+			;;
+		flush)
+			case "$2" in
+				set)
+					local family="$3" table="$4" setname="$5"
+					_NFT_SET_ELEMENTS="$(echo "$_NFT_SET_ELEMENTS" | sed "s|${family}:${table}:${setname}=[^|]*||g")"
+					return 0
+					;;
+			esac
+			;;
+		list)
+			case "$2" in
+				table)
+					local family="$3" table="$4"
+					if echo "$_NFT_TABLES" | grep -q "${family}:${table}"; then
+						echo "table ${family} ${table} {"
+						echo "}"
+						return 0
+					fi
+					return 1
+					;;
+				set)
+					local family="$3" table="$4" setname="$5"
+					if echo "$_NFT_SETS" | grep -q "${family}:${table}:${setname}"; then
+						echo "set ${setname} {"
+						echo "  type ipv4_addr"
+						echo "  flags interval"
+						local elems
+						elems="$(echo "$_NFT_SET_ELEMENTS" | tr '|' '\n' | grep "^${family}:${table}:${setname}=" | sed "s/^[^=]*=//")"
+						if [ -n "$elems" ]; then
+							echo "  elements = { ${elems} }"
+						fi
+						echo "}"
+						return 0
+					fi
+					return 1
+					;;
+				chain)
+					local family="$3" table="$4" chain="$5"
+					echo "chain ${chain} {"
+					echo "  type filter hook prerouting priority -150; policy accept;"
+					local rule_idx=1
+					echo "$_NFT_RULES" | tr '|' '\n' | while IFS= read -r rule; do
+						[ -z "$rule" ] && continue
+						echo "  ${rule} # handle ${rule_idx}"
+						rule_idx=$((rule_idx + 1))
+					done
+					echo "}"
+					return 0
+					;;
+			esac
+			;;
+		-f)
+			local batchfile="$2"
+			if [ -f "$batchfile" ]; then
+				_NFT_BATCH_CONTENT="$(cat "$batchfile")"
+				while IFS= read -r batchline; do
+					case "$batchline" in
+						"flush set "*)
+							;;
+						"add element "*)
+							_NFT_SET_ELEMENTS="${_NFT_SET_ELEMENTS}|batch:${batchline}"
+							;;
+					esac
+				done < "$batchfile"
+				return 0
+			fi
+			return 1
+			;;
+		-a)
+			shift
+			if [ "$1" = "list" ] && [ "$2" = "chain" ]; then
+				local family="$3" table="$4" chain="$5"
+				echo "chain ${chain} {"
+				echo "  type filter hook prerouting priority -150; policy accept;"
+				local rule_idx=1
+				echo "$_NFT_RULES" | tr '|' '\n' | while IFS= read -r rule; do
+					[ -z "$rule" ] && continue
+					echo "  ${rule} # handle ${rule_idx}"
+					rule_idx=$((rule_idx + 1))
+				done
+				echo "}"
+			fi
+			return 0
+			;;
+	esac
+	return 0
+}
+
+# ── Mock ipset Command ─────────────────────────────────
+
+ipset() {
+	return 0
+}
+
 # ── Source modules under test ───────────────────────────
 
 . "${MERGEN_ROOT}/files/usr/lib/mergen/core.sh"
@@ -256,6 +415,15 @@ setUp() {
 	_IP_RULES=""
 	_IP_RULE_DEL_COUNT=0
 	_MOCK_GATEWAY="10.0.0.1"
+	_NFT_TABLES=""
+	_NFT_CHAINS=""
+	_NFT_SETS=""
+	_NFT_SET_ELEMENTS=""
+	_NFT_RULES=""
+	_NFT_BATCH_CONTENT=""
+	_NFT_MOCK_FAIL=0
+	MERGEN_ENGINE_ACTIVE=""
+	MERGEN_NFT_AVAILABLE=""
 	MERGEN_UCI_RESULT=""
 	MERGEN_RULE_NAME=""
 	MERGEN_TABLE_NUM=0
@@ -331,8 +499,8 @@ test_route_apply_ip_rule() {
 	echo "$_IP_COMMANDS" | grep -q "ip route add 10.0.0.0/8"
 	assertEquals "Route add command issued" 0 $?
 
-	# Check ip rule add was called
-	echo "$_IP_COMMANDS" | grep -q "ip rule add to 10.0.0.0/8"
+	# Check ip rule add was called (nft active: fwmark-based routing)
+	echo "$_IP_COMMANDS" | grep -q "ip rule add fwmark"
 	assertEquals "Rule add command issued" 0 $?
 }
 
